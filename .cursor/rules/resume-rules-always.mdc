@@ -1,0 +1,10 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Project Goal: Build a profitable AI resume enhancement SaaS that delivers professional-quality results
+- MAIN FOCUS: Deliver a working resume enhancer that produces better results than the user's original - everything else is secondary
+- Rule 1: Implement only what's needed for the current iteration; reject any feature idea that doesn't directly improve core resume enhancement quality
+- Rule 2: Always prioritize shipping over perfection - one working feature is better than three half-implemented ones
+- Rule 3: If a proposed code change doesn't directly contribute to generating better resumes or improving user conversion, it's not a priority.

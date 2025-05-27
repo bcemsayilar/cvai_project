@@ -1,0 +1,15 @@
+---
+description: Main changes, new file additions to the codebase, service-system desing desicions, trying to understand project structure and goal.
+globs: 
+alwaysApply: false
+---
+- Project Goal: Build a profitable AI resume enhancement SaaS that delivers professional-quality results
+- Tech Stack: Next.js, TypeScript, Tailwind CSS, Supabase, LLM API (currently groq) with Llama 3.1
+- Data Flow: User uploads resume -> Extract text -> Process with Groq -> Structure as JSON -> Render in template
+- Resume Enhancement Priority: Quantify achievements, use action verbs, improve formatting, tailor to industry
+- Feature Delivery Priority: Core functionality > UI polish > Advanced features > Marketing elements
+- Template Management: Maintain resume templates as separate, parameterized components
+- Error Handling: Gracefully handle API failures, invalid inputs, and rendering issues
+- Security: Treat all user resume data as sensitive, ensure proper access controls
+- Performance: Optimize for quick enhancement turnaround (target <1 minute)
+- Code Organization: Group by feature rather than technical function
