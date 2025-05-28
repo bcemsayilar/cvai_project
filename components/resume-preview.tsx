@@ -1,6 +1,6 @@
 // @ts-nocheck
 "use client"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -10,7 +10,7 @@ import { createSupabaseClient } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-import { PDFDownloadLink } from '@react-pdf/renderer';
+import { PDFDownloadLink, PDFViewer } from '@react-pdf/renderer';
 import { ResumePdfDocument } from './resume-pdf-document';
 
 // Import builder components
@@ -25,6 +25,7 @@ import { ExperienceSection } from '../builder/ExperienceSection';
 import { SkillsSection } from '../builder/SkillsSection';
 import { ToolsSection } from '../builder/ToolsSection';
 import { LatestProjects } from '../builder/LatestProjects';
+import { ResumeLight } from '../builder/ResumeLight';
 
 interface ResumePreviewProps {
   resumeId?: string | null
@@ -268,31 +269,28 @@ export function ResumePreview({ resumeId, originalPath, processedPath }: ResumeP
   };
 
   const renderResumePreview = () => {
-     // This part needs to render React components from the builder folder
-     // using the processed resumePreviewData.content
-     // Instead of injecting HTML, we will render the new TSX components.
-
      if (!resumePreviewData || !resumePreviewData.content) {
         return <p>No preview data available.</p>;
      }
 
-     const content = resumePreviewData.content;
-     const design = resumePreviewData.design; // Pass design for styling if components use it
-
-    return (
-        <div
-           // Removed id and dangerouslySetInnerHTML as we are rendering React components
-           // id="resume-preview-content"
-           className={
-             isDarkMode
-               ? "dark bg-gray-900 text-white p-6 rounded-md shadow-lg min-h-screen"
-               : "bg-white text-gray-900 p-6 rounded-md shadow-lg min-h-screen"
-           }
-         >
-           {/* Render the main Resume component and pass data and mode */}
-           {/* Assuming ResumeMain component orchestrates the layout */}
-           <ResumeMain content={content} design={design} isDarkMode={isDarkMode} />
-            </div>
+     // Use PDFViewer to display the ResumePdfDocument component with proper sizing
+     return (
+         <div className="w-full" style={{ height: '80vh', minHeight: '600px' }}>
+           <PDFViewer 
+             width="100%"
+             height="100%"
+             style={{ 
+               border: 'none',
+               height: '80vh',
+               minHeight: '600px'
+             }}
+           >
+             <ResumePdfDocument 
+               resumeData={resumePreviewData} 
+               mode={isDarkMode ? 'dark' : 'light'}
+             />
+           </PDFViewer>
+         </div>
      );
   };
 
@@ -322,7 +320,7 @@ export function ResumePreview({ resumeId, originalPath, processedPath }: ResumeP
 
 
   return (
-    <Card className="w-full h-full overflow-hidden flex flex-col">
+    <Card className="w-full h-full min-h-[800px] overflow-hidden flex flex-col">
       <div className="flex items-center p-4 border-b">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
@@ -385,9 +383,10 @@ export function ResumePreview({ resumeId, originalPath, processedPath }: ResumeP
 
         </div>
       </div>
-      <div className="flex-grow overflow-y-auto p-4">
+      <div className="flex-grow overflow-hidden" style={{ minHeight: '700px' }}>
+        <div className="h-full overflow-y-auto">
             {isLoading ? (
-          <div className="space-y-4">
+          <div className="space-y-4 p-4">
             <Skeleton className="h-12 w-full" />
             <Skeleton className="h-6 w-3/4" />
             <Skeleton className="h-6 w-1/2" />
@@ -398,16 +397,19 @@ export function ResumePreview({ resumeId, originalPath, processedPath }: ResumeP
           <>
             {resumePreviewError && activeTab !== "json" && (
                // Moved the error message here to be part of the content area
-              <div className="text-yellow-600 flex items-center space-x-1 p-4 bg-yellow-50 rounded-md mb-4">
+              <div className="text-yellow-600 flex items-center space-x-1 p-4 bg-yellow-50 rounded-md mb-4 mx-4">
                 <AlertTriangle size={18} />
                 <span>{resumePreviewError}</span>
               </div>
             )}
-            {activeTab === "preview" && renderResumePreview()}
-            {activeTab === "text" && renderTextView()}
-            {activeTab === "json" && renderJsonView()}
+            <div className={activeTab === "preview" ? "h-full" : "p-4"}>
+              {activeTab === "preview" && renderResumePreview()}
+              {activeTab === "text" && renderTextView()}
+              {activeTab === "json" && renderJsonView()}
+            </div>
           </>
         )}
+        </div>
       </div>
     </Card>
   )

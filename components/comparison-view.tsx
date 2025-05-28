@@ -85,45 +85,7 @@ export function ComparisonView({ resumeId, originalPath, processedPath }: Compar
     fetchResumeContent()
   }, [originalPath, processedPath, supabase, toast])
 
-  const generatePdf = async () => {
-    if (!resumeId) return
 
-    setIsPdfGenerating(true)
-    setPdfUrl(null)
-
-    try {
-      console.log("Generating PDF for resume:", resumeId)
-      const { data, error } = await supabase.functions.invoke("convert-to-pdf", {
-        body: { resumeId },
-      })
-
-      if (error) {
-        console.error("PDF generation error:", error)
-        throw error
-      }
-
-      if (data.success && data.downloadUrl) {
-        console.log("PDF generated successfully, URL:", data.downloadUrl)
-        setPdfUrl(data.downloadUrl)
-        window.open(data.downloadUrl, "_blank")
-        toast({
-          title: "PDF Generated",
-          description: "Your enhanced resume has been converted to PDF",
-        })
-      } else {
-        throw new Error(data.error || "Failed to generate PDF")
-      }
-    } catch (error) {
-      console.error("Error generating PDF:", error)
-      toast({
-        title: "PDF Generation Failed",
-        description: error instanceof Error ? error.message : "An unknown error occurred",
-        variant: "destructive",
-      })
-    } finally {
-      setIsPdfGenerating(false)
-    }
-  }
 
   const downloadTxtFile = async () => {
     if (!processedPath) return
@@ -221,24 +183,7 @@ export function ComparisonView({ resumeId, originalPath, processedPath }: Compar
             Download TXT
           </Button>
 
-          <Button
-            onClick={generatePdf}
-            disabled={isPdfGenerating || isLoading || !processedPath}
-            className="bg-teal-600 hover:bg-teal-700 text-white"
-            size="sm"
-          >
-            {isPdfGenerating ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Generating PDF...
-              </>
-            ) : (
-              <>
-                <FileText className="h-4 w-4 mr-2" />
-                Generate PDF
-              </>
-            )}
-          </Button>
+
         </div>
       </div>
 

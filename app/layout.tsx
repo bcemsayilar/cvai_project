@@ -22,10 +22,6 @@ export default function RootLayout({
       <body>
         <AuthProvider>{children}</AuthProvider>
         <Toaster />
-        <Script 
-          src="/html2pdf.bundle.min.js"
-          strategy="afterInteractive"
-        />
       </body>
     </html>
   )

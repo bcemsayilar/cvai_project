@@ -116,7 +116,7 @@ serve(async (req)=>{
     console.log("Starting process-resume function");
     // Initialize Supabase client
     const supabaseClient = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "", {
-      global: {
+        global: {
         headers: {
           Authorization: req.headers.get("Authorization")
         }
@@ -129,7 +129,7 @@ serve(async (req)=>{
       return new Response(JSON.stringify({
         error: "Unauthorized"
       }), {
-        status: 401,
+          status: 401,
         headers: {
           ...corsHeaders,
           "Content-Type": "application/json"
@@ -143,7 +143,7 @@ serve(async (req)=>{
       return new Response(JSON.stringify({
         error: "Resume ID is required"
       }), {
-        status: 400,
+          status: 400,
         headers: {
           ...corsHeaders,
           "Content-Type": "application/json"
@@ -158,7 +158,7 @@ serve(async (req)=>{
       return new Response(JSON.stringify({
         error: "User profile not found"
       }), {
-        status: 404,
+          status: 404,
         headers: {
           ...corsHeaders,
           "Content-Type": "application/json"
@@ -169,7 +169,7 @@ serve(async (req)=>{
       return new Response(JSON.stringify({
         error: "Resume limit reached for your subscription"
       }), {
-        status: 403,
+          status: 403,
         headers: {
           ...corsHeaders,
           "Content-Type": "application/json"
@@ -183,7 +183,7 @@ serve(async (req)=>{
       return new Response(JSON.stringify({
         error: "Resume not found"
       }), {
-        status: 404,
+          status: 404,
         headers: {
           ...corsHeaders,
           "Content-Type": "application/json"
@@ -192,8 +192,8 @@ serve(async (req)=>{
     }
     // Update resume status to processing
     await supabaseClient.from("resumes").update({
-      status: "processing",
-      enhancement_styles: enhancementStyles || [],
+        status: "processing",
+        enhancement_styles: enhancementStyles || [],
       custom_instructions: customInstructions || ""
     }).eq("id", resumeId);
     console.log("Updated resume status to processing");
@@ -207,7 +207,7 @@ serve(async (req)=>{
       return new Response(JSON.stringify({
         error: "Failed to download resume file"
       }), {
-        status: 500,
+          status: 500,
         headers: {
           ...corsHeaders,
           "Content-Type": "application/json"
@@ -232,7 +232,7 @@ serve(async (req)=>{
         return new Response(JSON.stringify({
           error: "Failed to read content from plain text resume file."
         }), {
-          status: 500,
+            status: 500,
           headers: {
             ...corsHeaders,
             "Content-Type": "application/json"
@@ -257,7 +257,7 @@ serve(async (req)=>{
         return new Response(JSON.stringify({
           error: "Failed to extract text using Document AI: " + error.message
         }), {
-          status: 500,
+            status: 500,
           headers: {
             ...corsHeaders,
             "Content-Type": "application/json"
@@ -273,7 +273,7 @@ serve(async (req)=>{
       return new Response(JSON.stringify({
         error: unsupportedTypeMessage
       }), {
-        status: 415,
+          status: 415,
         headers: {
           ...corsHeaders,
           "Content-Type": "application/json"
@@ -288,7 +288,7 @@ serve(async (req)=>{
       return new Response(JSON.stringify({
         error: "Failed to extract meaningful text from the resume. The file might be empty, corrupted, or an unexpected issue occurred during text extraction."
       }), {
-        status: 500,
+          status: 500,
         headers: {
           ...corsHeaders,
           "Content-Type": "application/json"
@@ -320,7 +320,7 @@ You are an expert resume enhancer and designer. Analyze the provided resume and 
 {
     "name": "Full Name",
     "title": "Professional Title",
-    "location": "City, Country",
+        "location": "City, Country",
     "contacts": [
         { "type": "email", "value": "email@example.com" },
         { "type": "website", "value": "https://yourwebsite.com" },
@@ -328,13 +328,13 @@ You are an expert resume enhancer and designer. Analyze the provided resume and 
         { "type": "github", "value": "github.com/username" }
     ],
     "education": [
-        {
-            "degree": "Degree Name",
-            "institution": "Institution Name",
-            "location": "City, Country",
-            "dates": "Start Date - End Date",
-            "details": ["Detail 1", "Detail 2"]
-        }
+      {
+        "degree": "Degree Name",
+        "institution": "Institution Name",
+        "location": "City, Country",
+        "dates": "Start Date - End Date",
+        "details": ["Detail 1", "Detail 2"]
+      }
     ],
     "experience": [
         {
@@ -346,7 +346,27 @@ You are an expert resume enhancer and designer. Analyze the provided resume and 
             "tags": ["React", "Node.js"]
         }
     ],
-    "skills": ["JavaScript", "TypeScript", "Python"]
+    "skills": ["JavaScript", "TypeScript", "Python"],
+  "design": {
+      "layout": {
+        "columns": 2,
+        "columnGap": 20,
+        "padding": 40
+    },
+    "typography": {
+        "fontFamily": "Noto Sans",
+        "fontSize": 10,
+        "lineHeight": 1.5,
+        "paragraphSpacing": 20
+      },
+      "colors": {
+        "primary": "#333333",
+        "secondary": "#666666",
+        "accent": "#007bff",
+        "text": "#333333",
+        "background": "#ffffff"
+      }
+    }
 }
 
 Guidelines:
@@ -355,6 +375,7 @@ Guidelines:
 - Do not fabricate information; only extract what is present in the resume.
 - Only output a valid JSON object, nothing else.
 - Do NOT include any comments or explanations.
+- **CRITICAL:** Always include the "design" object with "layout.columns" set to 2.
 ${styleProperties}
 ${customInstructions ? `\nAdditional instructions: ${customInstructions}` : ""}
 `;
@@ -369,7 +390,7 @@ ${customInstructions ? `\nAdditional instructions: ${customInstructions}` : ""}
       return new Response(JSON.stringify({
         error: "AI service configuration error"
       }), {
-        status: 500,
+          status: 500,
         headers: {
           ...corsHeaders,
           "Content-Type": "application/json"
@@ -449,7 +470,7 @@ ${customInstructions ? `\nAdditional instructions: ${customInstructions}` : ""}
         });
         if (contactInfo.length > 0) {
           contentSections.push(contactInfo.join(" | "));
-        }
+      }
       }
       // Add Education
       if (resumeJson.education && resumeJson.education.length > 0) {
@@ -487,7 +508,7 @@ ${customInstructions ? `\nAdditional instructions: ${customInstructions}` : ""}
       const { error: uploadError } = await supabaseClient.storage.from("resumes").upload(processedFileName, new Blob([
         enhancedResumeText
       ]), {
-        contentType: "text/plain",
+          contentType: "text/plain",
         upsert: true
       });
       if (uploadError) {
@@ -498,7 +519,7 @@ ${customInstructions ? `\nAdditional instructions: ${customInstructions}` : ""}
         return new Response(JSON.stringify({
           error: "Failed to upload enhanced resume"
         }), {
-          status: 500,
+            status: 500,
           headers: {
             ...corsHeaders,
             "Content-Type": "application/json"
@@ -508,21 +529,21 @@ ${customInstructions ? `\nAdditional instructions: ${customInstructions}` : ""}
       // Update resume record with the JSON preview data
       console.log("Updating resume record with JSON preview data");
       await supabaseClient.from("resumes").update({
-        processed_file_path: processedFileName,
-        resume_preview_json: resumeJson,
-        status: "completed",
+          processed_file_path: processedFileName,
+          resume_preview_json: resumeJson,
+          status: "completed",
         updated_at: new Date().toISOString()
       }).eq("id", resumeId);
       // Increment user's resumes_used count
       await supabaseClient.from("profiles").update({
-        resumes_used: profile.resumes_used + 1,
+          resumes_used: profile.resumes_used + 1,
         updated_at: new Date().toISOString()
       }).eq("id", user.id);
       console.log("Resume enhancement process completed successfully");
       return new Response(JSON.stringify({
-        success: true,
-        resumeId,
-        status: "completed",
+          success: true,
+          resumeId,
+          status: "completed",
         processedPath: processedFileName
       }), {
         headers: {

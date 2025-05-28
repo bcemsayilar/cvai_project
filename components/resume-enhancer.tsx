@@ -37,8 +37,8 @@ export default function ResumeEnhancer() {
     grammarFix: true,
     styleOnly: false,
   })
-  const [isDownloading, setIsDownloading] = useState(false)
-  const [downloadFormat, setDownloadFormat] = useState<"txt" | "pdf">("pdf")
+  const [isDownloading, setIsDownloading] = useState<boolean>(false)
+  const [downloadFormat, setDownloadFormat] = useState<"txt" | null>(null)
   const supabase = createSupabaseClient()
 
   // Reference to track subscription
@@ -116,7 +116,7 @@ export default function ResumeEnhancer() {
         if (data.status === "completed") {
           setIsProcessing(false)
           setIsComplete(true)
-          setProcessedFilePath(data.processed_file_path)
+          setProcessedFilePath(data.processed_file_path as string)
           setProcessingError(null)
         } else if (data.status === "failed") {
           setIsProcessing(false)
@@ -267,7 +267,7 @@ export default function ResumeEnhancer() {
             if (data.status === "completed") {
               setIsProcessing(false)
               setIsComplete(true)
-              setProcessedFilePath(data.processed_file_path)
+              setProcessedFilePath(data.processed_file_path as string)
               setProcessingError(null)
               toast({
                 title: "Resume enhanced successfully",
@@ -290,82 +290,55 @@ export default function ResumeEnhancer() {
     } catch (error) {
       console.error("Processing error:", error)
       setIsProcessing(false)
-      setProcessingError(error instanceof Error ? error.message : "An unknown error occurred")
+      setProcessingError(error instanceof Error ? error.message : String(error))
       toast({
         title: "Processing failed",
-        description: error instanceof Error ? error.message : "An unknown error occurred",
+        description: error instanceof Error ? error.message : String(error),
         variant: "destructive",
       })
     }
   }
 
-  const downloadResume = async (format: "txt" | "pdf" = "pdf") => {
-    if (!processedFilePath || !resumeId) return
+  const downloadResume = async (format: "txt") => {
+    if (!processedFilePath || !resumeId || format !== "txt") return;
 
-    setIsDownloading(true)
-    setDownloadFormat(format)
+    setIsDownloading(true);
+    setDownloadFormat(format);
 
     try {
-      if (format === "pdf") {
-        console.log("Generating PDF for resume:", resumeId)
-        // Call the convert-to-pdf Edge Function
-        const { data, error } = await supabase.functions.invoke("convert-to-pdf", {
-          body: { resumeId },
-        })
+      console.log("Downloading TXT file from:", processedFilePath);
+      const { data, error } = await supabase.storage.from("resumes").download(processedFilePath);
 
-        if (error) {
-          console.error("PDF generation error:", error)
-          throw new Error(error.message)
-        }
-
-        if (data.success && data.downloadUrl) {
-          console.log("PDF generated successfully, URL:", data.downloadUrl)
-          // Open the PDF in a new tab
-          window.open(data.downloadUrl, "_blank")
-
-          toast({
-            title: "PDF generated successfully",
-            description: "Your enhanced resume has been converted to PDF",
-          })
-        } else {
-          throw new Error(data.error || "Failed to generate PDF")
-        }
-      } else {
-        // For text format, download directly
-        console.log("Downloading TXT file from:", processedFilePath)
-        const { data, error } = await supabase.storage.from("resumes").download(processedFilePath)
-
-        if (error) {
-          console.error("Download error:", error)
-          throw new Error(error.message)
-        }
-
-        // Create a download link
-        const url = URL.createObjectURL(data)
-        const a = document.createElement("a")
-        a.href = url
-        a.download = `enhanced-resume.${format}`
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        URL.revokeObjectURL(url)
-
-        toast({
-          title: "Resume downloaded",
-          description: `Your enhanced resume has been downloaded as ${format.toUpperCase()}`,
-        })
+      if (error) {
+        console.error("Download error:", error);
+        throw new Error(error.message);
       }
+
+      // Create a download link
+      const url = URL.createObjectURL(data);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `enhanced-resume.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "Resume downloaded",
+        description: `Your enhanced resume has been downloaded as ${format.toUpperCase()}`,
+      });
     } catch (error) {
-      console.error("Download error:", error)
+      console.error("Download error:", error);
       toast({
         title: "Download failed",
-        description: error instanceof Error ? error.message : "An unknown error occurred",
+        description: error instanceof Error ? error.message : String(error),
         variant: "destructive",
-      })
+      });
     } finally {
-      setIsDownloading(false)
+      setIsDownloading(false);
     }
-  }
+  };
 
   // Check if user is on trial plan
   const isTrialUser = profile?.subscription_type === "trial"
@@ -500,7 +473,7 @@ export default function ResumeEnhancer() {
 
                     <Button
                       onClick={processResume}
-                      disabled={isProcessing || (profile && profile.resumes_used >= profile.resumes_limit)}
+                      disabled={isProcessing || (profile?.resumes_used ?? 0) >= (profile?.resumes_limit ?? 0)}
                       className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 text-white"
                       size="lg"
                     >
@@ -585,41 +558,20 @@ export default function ResumeEnhancer() {
 
                     <div className="flex flex-col sm:flex-row gap-4 justify-center">
                       <Button
-                        onClick={() => downloadResume("pdf")}
-                        className="bg-teal-600 hover:bg-teal-700 text-white"
-                        size="lg"
-                        disabled={isDownloading}
-                      >
-                        {isDownloading && downloadFormat === "pdf" ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Generating PDF...
-                          </>
-                        ) : (
-                          <>
-                            <Download className="mr-2 h-4 w-4" />
-                            Download as PDF
-                          </>
-                        )}
-                      </Button>
-                      <Button
                         onClick={() => downloadResume("txt")}
-                        variant="outline"
+                        disabled={isDownloading}
+                        className="w-full sm:w-auto"
                         size="lg"
-                        disabled={isDownloading || isTrialUser}
                       >
                         {isDownloading && downloadFormat === "txt" ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Downloading...
+                            Downloading Text...
                           </>
                         ) : (
                           <>
-                            <Download className="mr-2 h-4 w-4" />
-                            Download as TXT
-                            {isTrialUser && (
-                              <span className="ml-2 text-xs bg-gray-200 px-1 py-0.5 rounded">Premium</span>
-                            )}
+                            <FileText className="mr-2 h-4 w-4" />
+                            Download as Text
                           </>
                         )}
                       </Button>
