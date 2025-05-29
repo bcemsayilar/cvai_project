@@ -5,13 +5,25 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Skeleton } from "@/components/ui/skeleton"
-import { AlertTriangle, Download, FileText, Loader2, PenTool, Moon, Sun } from "lucide-react"
+import { AlertTriangle, Download, FileText, Loader2, PenTool, Moon, Sun, BarChart3 } from "lucide-react"
 import { createSupabaseClient } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { PDFDownloadLink, PDFViewer } from '@react-pdf/renderer';
-import { ResumePdfDocument } from './resume-pdf-document';
+import { ATSScoreDisplay } from "./ats-score-display"
+import { ResumePdfDocument } from "./resume-pdf-document"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+
+interface ATSScore {
+  keywordMatch: number
+  formatScore: number
+  contentQuality: number
+  readabilityScore: number
+  structureScore: number
+  overallScore: number
+  recommendations: string[]
+}
 
 // Import builder components
 
@@ -20,6 +32,8 @@ interface ResumePreviewProps {
   resumeId?: string | null
   originalPath?: string | null
   processedPath?: string | null
+  atsScoreOriginal?: ATSScore | null
+  atsScoreEnhanced?: ATSScore | null
 }
 
 export interface ResumeContent {
@@ -119,7 +133,13 @@ type ResumePreviewData = {
 // For TypeScript/JSX errors, ensure tsconfig.json has: "jsx": "react-jsx"
 // and install @types/react if not present: pnpm add -D @types/react
 
-export const ResumePreview = memo(function ResumePreview({ resumeId, originalPath, processedPath }: ResumePreviewProps) {
+export const ResumePreview = memo(function ResumePreview({ 
+  resumeId, 
+  originalPath, 
+  processedPath, 
+  atsScoreOriginal: propAtsScoreOriginal, 
+  atsScoreEnhanced: propAtsScoreEnhanced 
+}: ResumePreviewProps) {
   // State definitions
   const [viewMode, setViewMode] = useState<"preview" | "text" | "json">("preview")
   const [originalResume, setOriginalResume] = useState<string>("")
@@ -128,11 +148,19 @@ export const ResumePreview = memo(function ResumePreview({ resumeId, originalPat
   const [isLoading, setIsLoading] = useState(true)
   const [isDarkMode, setIsDarkMode] = useState(false)
   const [activeTab, setActiveTab] = useState("preview")
+  const [atsScoreOriginal, setAtsScoreOriginal] = useState<ATSScore | null>(propAtsScoreOriginal || null)
+  const [atsScoreEnhanced, setAtsScoreEnhanced] = useState<ATSScore | null>(propAtsScoreEnhanced || null)
   const { toast } = useToast()
   
   // Create supabase client with useRef to prevent recreation on every render
   const supabaseRef = useRef(createSupabaseClient())
   const supabase = supabaseRef.current
+
+  // Update ATS scores when props change
+  useEffect(() => {
+    setAtsScoreOriginal(propAtsScoreOriginal || null)
+    setAtsScoreEnhanced(propAtsScoreEnhanced || null)
+  }, [propAtsScoreOriginal, propAtsScoreEnhanced])
 
   useEffect(() => {
     const fetchResumeData = async () => {
@@ -196,6 +224,14 @@ export const ResumePreview = memo(function ResumePreview({ resumeId, originalPat
         } else {
           setResumePreviewData(null);
           setResumePreviewError("Resume preview data is missing or empty. Please try enhancing again.");
+        }
+
+        // Set ATS scores if available
+        if (resume.ats_score_original) {
+          setAtsScoreOriginal(resume.ats_score_original as ATSScore);
+        }
+        if (resume.ats_score_enhanced) {
+          setAtsScoreEnhanced(resume.ats_score_enhanced as ATSScore);
         }
 
         if (originalPath) {
@@ -318,6 +354,8 @@ export const ResumePreview = memo(function ResumePreview({ resumeId, originalPat
     )
   }
 
+  // Remove renderATSView function since ATS analysis is now standalone
+
 
   return (
     <Card className="w-full h-full min-h-[800px] overflow-hidden flex flex-col">
@@ -336,6 +374,27 @@ export const ResumePreview = memo(function ResumePreview({ resumeId, originalPat
                 <AlertTriangle size={18} />
                 <span>{resumePreviewError}</span>
               </div>
+            )}
+
+           {/* Compare ATS Scores Button - Only show if both scores exist */}
+            {atsScoreOriginal && atsScoreEnhanced && (
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="flex items-center space-x-2">
+                    <BarChart3 size={18} />
+                    <span>Compare ATS Scores</span>
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>ATS Score Comparison</DialogTitle>
+                  </DialogHeader>
+                  <ATSScoreDisplay 
+                    originalScore={atsScoreOriginal} 
+                    enhancedScore={atsScoreEnhanced} 
+                  />
+                </DialogContent>
+              </Dialog>
             )}
 
            {/* Dark Mode Toggle */}
@@ -407,7 +466,7 @@ export const ResumePreview = memo(function ResumePreview({ resumeId, originalPat
               {activeTab === "preview" && renderResumePreview()}
               {activeTab === "text" && renderTextView()}
               {activeTab === "json" && renderJsonView()}
-          </div>
+            </div>
           </>
         )}
         </div>

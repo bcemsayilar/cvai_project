@@ -17,6 +17,18 @@ import { useAuth } from "@/contexts/auth-context"
 import { AuthModal } from "@/components/auth/auth-modal"
 import { createSupabaseClient } from "@/lib/supabase"
 import { ResumePreview } from "@/components/resume-preview"
+import { ATSScoreDisplay } from "@/components/ats-score-display"
+import { ATSAnalyzerModal } from "@/components/ats-analyzer-modal"
+
+interface ATSScore {
+  keywordMatch: number
+  formatScore: number
+  contentQuality: number
+  readabilityScore: number
+  structureScore: number
+  overallScore: number
+  recommendations: string[]
+}
 
 export default function ResumeEnhancer() {
   const { toast } = useToast()
@@ -40,6 +52,9 @@ export default function ResumeEnhancer() {
   })
   const [isDownloading, setIsDownloading] = useState<boolean>(false)
   const [downloadFormat, setDownloadFormat] = useState<"txt" | null>(null)
+  const [atsScoreOriginal, setAtsScoreOriginal] = useState<ATSScore | null>(null)
+  const [atsScoreEnhanced, setAtsScoreEnhanced] = useState<ATSScore | null>(null)
+  const [isATSModalOpen, setIsATSModalOpen] = useState(false)
   
   // Create supabase client with useRef to prevent recreation on every render
   const supabaseRef = useRef(createSupabaseClient())
@@ -105,6 +120,15 @@ export default function ResumeEnhancer() {
             setIsComplete(true)
             setProcessedFilePath(payload.new.processed_file_path)
             setProcessingError(null)
+            
+            // Set ATS scores if available
+            if (payload.new.ats_score_original) {
+              setAtsScoreOriginal(payload.new.ats_score_original as ATSScore)
+            }
+            if (payload.new.ats_score_enhanced) {
+              setAtsScoreEnhanced(payload.new.ats_score_enhanced as ATSScore)
+            }
+            
             toast({
               title: "Resume enhanced successfully",
               description: "Your enhanced resume is ready to download",
@@ -130,7 +154,7 @@ export default function ResumeEnhancer() {
       try {
         const { data, error } = await supabase
           .from("resumes")
-          .select("status, processed_file_path")
+          .select("status, processed_file_path, ats_score_original, ats_score_enhanced")
           .eq("id", resumeId)
           .single()
 
@@ -141,6 +165,14 @@ export default function ResumeEnhancer() {
           setIsComplete(true)
           setProcessedFilePath(data.processed_file_path as string)
           setProcessingError(null)
+          
+          // Set ATS scores if available
+          if (data.ats_score_original) {
+            setAtsScoreOriginal(data.ats_score_original as ATSScore)
+          }
+          if (data.ats_score_enhanced) {
+            setAtsScoreEnhanced(data.ats_score_enhanced as ATSScore)
+          }
         } else if (data.status === "failed") {
           setIsProcessing(false)
           setProcessingError("Resume enhancement failed. Please try again.")
@@ -172,6 +204,8 @@ export default function ResumeEnhancer() {
     setIsProcessing(false)
     setProcessedFilePath(null)
     setProcessingError(null)
+    setAtsScoreOriginal(null)
+    setAtsScoreEnhanced(null)
   }, [])
 
   const handleStyleToggle = useCallback((style: keyof typeof selectedStyles) => {
@@ -267,7 +301,7 @@ export default function ResumeEnhancer() {
           try {
             const { data, error } = await supabase
               .from("resumes")
-              .select("status, processed_file_path")
+              .select("status, processed_file_path, ats_score_original, ats_score_enhanced")
               .eq("id", resumeId)
               .single()
 
@@ -278,6 +312,15 @@ export default function ResumeEnhancer() {
               setIsComplete(true)
               setProcessedFilePath(data.processed_file_path as string)
               setProcessingError(null)
+              
+              // Set ATS scores if available
+              if (data.ats_score_original) {
+                setAtsScoreOriginal(data.ats_score_original as ATSScore)
+              }
+              if (data.ats_score_enhanced) {
+                setAtsScoreEnhanced(data.ats_score_enhanced as ATSScore)
+              }
+              
               toast({
                 title: "Resume enhanced successfully",
                 description: "Your enhanced resume is ready to download",
@@ -306,6 +349,28 @@ export default function ResumeEnhancer() {
         variant: "destructive",
       })
     }
+  }
+
+  const openATSAnalyzer = () => {
+    if (!user) {
+      setIsAuthModalOpen(true)
+      return
+    }
+
+    if (!file || !resumeId) {
+      toast({
+        title: "No file uploaded",
+        description: "Please upload your resume first",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsATSModalOpen(true)
+  }
+
+  const handleATSAnalysisComplete = (score: ATSScore) => {
+    setAtsScoreOriginal(score)
   }
 
   const downloadResume = async (format: "txt") => {
@@ -356,8 +421,10 @@ export default function ResumeEnhancer() {
   const resumePreviewProps = useMemo(() => ({
     resumeId,
     originalPath: filePath,
-    processedPath: processedFilePath
-  }), [resumeId, filePath, processedFilePath])
+    processedPath: processedFilePath,
+    atsScoreOriginal,
+    atsScoreEnhanced
+  }), [resumeId, filePath, processedFilePath, atsScoreOriginal, atsScoreEnhanced])
 
   // Callback for handling custom instructions change
   const handleCustomInstructionsChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -492,28 +559,52 @@ export default function ResumeEnhancer() {
                       </Alert>
                     )}
 
-                    <Button
-                      onClick={processResume}
-                      disabled={isProcessing || (profile?.resumes_used ?? 0) >= (profile?.resumes_limit ?? 0)}
-                      className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 text-white"
-                      size="lg"
-                    >
-                      {isProcessing ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Processing...
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="mr-2 h-4 w-4" />
-                          Enhance My Resume
-                        </>
-                      )}
-                    </Button>
+                    <div className="space-y-4">
+                      <Button
+                        onClick={processResume}
+                        disabled={isProcessing || (profile?.resumes_used ?? 0) >= (profile?.resumes_limit ?? 0)}
+                        className="w-full bg-teal-600 hover:bg-teal-700 text-white"
+                        size="lg"
+                      >
+                        {isProcessing ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Processing...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="mr-2 h-4 w-4" />
+                            Enhance My Resume
+                          </>
+                        )}
+                      </Button>
+
+                      <Button
+                        onClick={openATSAnalyzer}
+                        disabled={!user || (profile ? profile.ats_analyses_used >= profile.ats_analyses_limit : false)}
+                        variant="outline"
+                        className="w-full border-blue-200 hover:bg-blue-50 hover:border-blue-300 disabled:opacity-50"
+                        size="lg"
+                      >
+                        <FileText className="mr-2 h-4 w-4" />
+                        Analyze ATS Compatibility
+                        {profile && (
+                          <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                            {profile.ats_analyses_used || 0}/{profile.ats_analyses_limit || 5}
+                          </span>
+                        )}
+                      </Button>
+                    </div>
 
                     {profile && profile.resumes_used >= profile.resumes_limit && (
                       <p className="mt-2 text-sm text-amber-600">
                         You've reached your plan limit. Please upgrade to process more resumes.
+                      </p>
+                    )}
+
+                    {profile && profile.ats_analyses_used >= profile.ats_analyses_limit && (
+                      <p className="mt-2 text-sm text-amber-600">
+                        You've reached your ATS analysis limit ({profile.ats_analyses_limit} analyses). Please upgrade for more analyses.
                       </p>
                     )}
                   </div>
@@ -552,6 +643,43 @@ export default function ResumeEnhancer() {
           </section>
         )}
 
+        {/* ATS Analysis Results (standalone) */}
+        {!isComplete && atsScoreOriginal && !isProcessing && (
+          <section className="py-16 px-4 sm:px-6 lg:px-8 bg-white">
+            <div className="max-w-5xl mx-auto">
+              <div className="text-center mb-10">
+                <div className="inline-flex items-center justify-center p-2 bg-blue-100 rounded-full mb-4">
+                  <FileText className="h-8 w-8 text-blue-600" />
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900">ATS Analysis Complete!</h2>
+                <p className="text-gray-500 mt-2">Here's how your resume performs with Applicant Tracking Systems.</p>
+              </div>
+
+              {/* ATS Score Display */}
+              <div className="mb-8">
+                <ATSScoreDisplay 
+                  originalScore={atsScoreOriginal}
+                />
+              </div>
+
+              <div className="text-center">
+                <p className="text-gray-600 mb-4">
+                  Want to improve your ATS score? Try our AI-powered resume enhancement!
+                </p>
+                <Button
+                  onClick={processResume}
+                  disabled={isProcessing || (profile?.resumes_used ?? 0) >= (profile?.resumes_limit ?? 0)}
+                  className="bg-teal-600 hover:bg-teal-700 text-white"
+                  size="lg"
+                >
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Enhance My Resume
+                </Button>
+              </div>
+            </div>
+          </section>
+        )}
+
         {/* Results Section */}
         {isComplete && (
           <section className="py-16 px-4 sm:px-6 lg:px-8 bg-white">
@@ -563,6 +691,16 @@ export default function ResumeEnhancer() {
                 <h2 className="text-2xl font-bold text-gray-900">Your Enhanced Resume is Ready!</h2>
                 <p className="text-gray-500 mt-2">Review the improvements below and download your enhanced resume.</p>
               </div>
+
+              {/* ATS Score Display */}
+              {(atsScoreOriginal || atsScoreEnhanced) && (
+                <div className="mb-8">
+                  <ATSScoreDisplay 
+                    originalScore={atsScoreOriginal || undefined}
+                    enhancedScore={atsScoreEnhanced || undefined}
+                  />
+                </div>
+              )}
 
               <Tabs defaultValue="preview" className="w-full mb-8">
                 <TabsList className="grid w-full grid-cols-2 mb-6">
@@ -610,11 +748,11 @@ export default function ResumeEnhancer() {
             <div className="text-center mb-12">
               <h2 className="text-3xl font-bold text-gray-900">How It Works</h2>
               <p className="mt-4 text-lg text-gray-600 max-w-2xl mx-auto">
-                Transform your resume in three simple steps
+                Transform your resume in three simple steps, plus get ATS compatibility insights
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
               <div className="bg-white p-6 rounded-lg shadow-md">
                 <div className="w-12 h-12 bg-teal-100 rounded-full flex items-center justify-center mb-4">
                   <Upload className="h-6 w-6 text-teal-600" />
@@ -624,10 +762,20 @@ export default function ResumeEnhancer() {
               </div>
 
               <div className="bg-white p-6 rounded-lg shadow-md">
+                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+                  <FileText className="h-6 w-6 text-blue-600" />
+                </div>
+                <h3 className="text-xl font-semibold mb-2">2. Analyze</h3>
+                <p className="text-gray-600">
+                  Get instant ATS compatibility scoring to see how recruiters' systems will read your resume.
+                </p>
+              </div>
+
+              <div className="bg-white p-6 rounded-lg shadow-md">
                 <div className="w-12 h-12 bg-teal-100 rounded-full flex items-center justify-center mb-4">
                   <Sparkles className="h-6 w-6 text-teal-600" />
                 </div>
-                <h3 className="text-xl font-semibold mb-2">2. Enhance</h3>
+                <h3 className="text-xl font-semibold mb-2">3. Enhance</h3>
                 <p className="text-gray-600">
                   Our AI analyzes and enhances your resume based on your selected style preferences.
                 </p>
@@ -637,7 +785,7 @@ export default function ResumeEnhancer() {
                 <div className="w-12 h-12 bg-teal-100 rounded-full flex items-center justify-center mb-4">
                   <Download className="h-6 w-6 text-teal-600" />
                 </div>
-                <h3 className="text-xl font-semibold mb-2">3. Download</h3>
+                <h3 className="text-xl font-semibold mb-2">4. Download</h3>
                 <p className="text-gray-600">Review the changes and download your professionally enhanced resume.</p>
               </div>
             </div>
@@ -745,6 +893,14 @@ export default function ResumeEnhancer() {
       <Footer />
 
       <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} defaultTab="signin" />
+      
+      <ATSAnalyzerModal
+        isOpen={isATSModalOpen}
+        onClose={() => setIsATSModalOpen(false)}
+        resumeId={resumeId}
+        filePath={filePath}
+        onAnalysisComplete={handleATSAnalysisComplete}
+      />
     </div>
   )
 }

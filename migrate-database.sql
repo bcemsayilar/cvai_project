@@ -10,6 +10,27 @@ BEGIN
 END
 $$;
 
+-- Add ATS score columns to resumes table if they don't exist
+DO $$
+BEGIN
+  -- Original ATS score before enhancement
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'resumes' AND column_name = 'ats_score_original'
+  ) THEN
+    ALTER TABLE public.resumes ADD COLUMN ats_score_original JSONB;
+  END IF;
+  
+  -- Enhanced ATS score after enhancement
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'resumes' AND column_name = 'ats_score_enhanced'
+  ) THEN
+    ALTER TABLE public.resumes ADD COLUMN ats_score_enhanced JSONB;
+  END IF;
+END
+$$;
+
 -- Add new API functions to the database
 CREATE OR REPLACE FUNCTION public.get_enhanced_resume_preview(resume_id UUID)
 RETURNS JSONB

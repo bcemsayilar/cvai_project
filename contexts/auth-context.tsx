@@ -15,6 +15,8 @@ type Profile = {
   subscription_expires_at: string
   resumes_used: number
   resumes_limit: number
+  ats_analyses_used: number
+  ats_analyses_limit: number
   created_at: string
   updated_at: string
 }

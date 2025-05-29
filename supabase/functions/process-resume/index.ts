@@ -3,10 +3,58 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Groq } from "https://esm.sh/groq-sdk";
 import { create } from "https://deno.land/x/djwt@v3.0.1/mod.ts";
+
+interface ATSCriteria {
+  keywordMatch: number;
+  formatScore: number;
+  contentQuality: number;
+  readabilityScore: number;
+  structureScore: number;
+  overallScore: number;
+  recommendations: string[];
+}
+interface ATSCriteria {
+  keywordMatch: number;
+  formatScore: number;
+  contentQuality: number;
+  readabilityScore: number;
+  structureScore: number;
+  overallScore: number;
+  recommendations: string[];
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
 };
+
+/**
+ * Calls the standalone ATS analyzer function
+ */
+async function callATSAnalyzer(resumeText: string, supabaseClient: any): Promise<ATSCriteria> {
+  try {
+    const { data, error } = await supabaseClient.functions.invoke("ats-analyzer", {
+      body: {
+        resumeText: resumeText.trim(),
+      },
+    });
+
+    if (error) {
+      console.error("ATS analyzer function error:", error);
+      throw new Error(error.message || "ATS analysis failed");
+    }
+
+    if (!data.success || !data.analysis) {
+      console.error("ATS analysis failed:", data.error);
+      throw new Error(data.error || "Failed to analyze ATS score");
+    }
+
+    return data.analysis as ATSCriteria;
+  } catch (error) {
+    console.error("Error calling ATS analyzer:", error);
+    throw new Error(`Failed to analyze ATS score: ${error.message}`);
+  }
+}
 // Function to get Google Cloud access token using djwt library
 async function getAccessToken() {
   const clientEmail = Deno.env.get("GOOGLE_CLIENT_EMAIL");
@@ -144,7 +192,7 @@ serve(async (req)=>{
     }
     console.log("User authenticated:", user.id);
     // Parse request body
-    const { resumeId, enhancementStyles, customInstructions } = await req.json();
+    const { resumeId, filePath, enhancementStyles, customInstructions, extractOnly } = await req.json();
     if (!resumeId) {
       return new Response(JSON.stringify({
         error: "Resume ID is required"
@@ -302,6 +350,61 @@ serve(async (req)=>{
       });
     }
     console.log("Successfully extracted resume text, length:", resumeText.length);
+    
+    // If extractOnly flag is set, return just the extracted text
+    if (extractOnly) {
+      console.log("Extract-only mode, returning extracted text");
+      return new Response(JSON.stringify({
+        success: true,
+        extractedText: resumeText
+      }), {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json"
+        }
+      });
+    }
+    
+    // Initialize Groq client early for ATS analysis
+    const groqApiKey = Deno.env.get("GROQ_API_KEY");
+    if (!groqApiKey) {
+      console.error("GROQ_API_KEY not found in environment variables");
+      await supabaseClient.from("resumes").update({
+        status: "failed"
+      }).eq("id", resumeId);
+      return new Response(JSON.stringify({
+        error: "AI service configuration error"
+      }), {
+          status: 500,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json"
+        }
+      });
+    }
+    const groq = new Groq({ apiKey: groqApiKey });
+    
+    // Analyze original resume ATS score before enhancement
+    console.log("Analyzing original resume ATS score...");
+    let originalATSScore;
+    try {
+      originalATSScore = await callATSAnalyzer(resumeText, supabaseClient);
+      console.log("Original ATS score:", originalATSScore.overallScore);
+    } catch (error) {
+      console.error("Failed to analyze original ATS score:", error);
+      // Continue processing even if ATS analysis fails
+      originalATSScore = {
+        keywordMatch: 0,
+        formatScore: 0,
+        contentQuality: 0,
+        readabilityScore: 0,
+        structureScore: 0,
+        overallScore: 0,
+        recommendations: ["ATS analysis failed - please try again"]
+      };
+    }
+    
     // Build the style properties based on enhancement styles
     let styleProperties = "";
     if (enhancementStyles?.includes("professional")) {
@@ -386,26 +489,6 @@ ${styleProperties}
 ${customInstructions ? `\nAdditional instructions: ${customInstructions}` : ""}
 `;
     console.log("System prompt created with style instructions");
-    // Initialize Groq client
-    const groqApiKey = Deno.env.get("GROQ_API_KEY");
-    if (!groqApiKey) {
-      console.error("GROQ_API_KEY not found in environment variables");
-      await supabaseClient.from("resumes").update({
-        status: "failed"
-      }).eq("id", resumeId);
-      return new Response(JSON.stringify({
-        error: "AI service configuration error"
-      }), {
-          status: 500,
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json"
-        }
-      });
-    }
-    const groq = new Groq({
-      apiKey: groqApiKey
-    });
     console.log("Groq client initialized");
     // Process the resume with Groq
     try {
@@ -509,6 +592,28 @@ ${customInstructions ? `\nAdditional instructions: ${customInstructions}` : ""}
         contentSections.push(resumeJson.skills.join(", "));
       }
       const enhancedResumeText = contentSections.join("\n");
+      
+      // Analyze enhanced resume ATS score after enhancement
+      console.log("Analyzing enhanced resume ATS score...");
+      let enhancedATSScore;
+      try {
+        enhancedATSScore = await callATSAnalyzer(enhancedResumeText, supabaseClient);
+        console.log("Enhanced ATS score:", enhancedATSScore.overallScore);
+        console.log("ATS score improvement:", enhancedATSScore.overallScore - originalATSScore.overallScore);
+      } catch (error) {
+        console.error("Failed to analyze enhanced ATS score:", error);
+        // Use fallback scores if analysis fails
+        enhancedATSScore = {
+          keywordMatch: originalATSScore.keywordMatch,
+          formatScore: originalATSScore.formatScore,
+          contentQuality: originalATSScore.contentQuality,
+          readabilityScore: originalATSScore.readabilityScore,
+          structureScore: originalATSScore.structureScore,
+          overallScore: originalATSScore.overallScore,
+          recommendations: ["Enhanced ATS analysis failed - using original scores"]
+        };
+      }
+      
       // Upload the text version of the enhanced resume
       console.log("Uploading enhanced resume text to:", processedFileName);
       const { error: uploadError } = await supabaseClient.storage.from("resumes").upload(processedFileName, new Blob([
@@ -532,11 +637,13 @@ ${customInstructions ? `\nAdditional instructions: ${customInstructions}` : ""}
           }
         });
       }
-      // Update resume record with the JSON preview data
-      console.log("Updating resume record with JSON preview data");
+      // Update resume record with the JSON preview data and ATS scores
+      console.log("Updating resume record with JSON preview data and ATS scores");
       await supabaseClient.from("resumes").update({
           processed_file_path: processedFileName,
           resume_preview_json: resumeJson,
+          ats_score_original: originalATSScore,
+          ats_score_enhanced: enhancedATSScore,
           status: "completed",
         updated_at: new Date().toISOString()
       }).eq("id", resumeId);
