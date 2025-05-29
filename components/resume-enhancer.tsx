@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -28,6 +28,7 @@ export default function ResumeEnhancer() {
   const [isComplete, setIsComplete] = useState(false)
   const [processingError, setProcessingError] = useState<string | null>(null)
   const [customInstructions, setCustomInstructions] = useState("")
+  const [debouncedCustomInstructions, setDebouncedCustomInstructions] = useState("")
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
   const [processedFilePath, setProcessedFilePath] = useState<string | null>(null)
   const [selectedStyles, setSelectedStyles] = useState({
@@ -39,7 +40,29 @@ export default function ResumeEnhancer() {
   })
   const [isDownloading, setIsDownloading] = useState<boolean>(false)
   const [downloadFormat, setDownloadFormat] = useState<"txt" | null>(null)
-  const supabase = createSupabaseClient()
+  
+  // Create supabase client with useRef to prevent recreation on every render
+  const supabaseRef = useRef(createSupabaseClient())
+  const supabase = supabaseRef.current
+
+  // Debounce custom instructions to prevent excessive re-renders
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+  
+  useEffect(() => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current)
+    }
+    
+    debounceTimerRef.current = setTimeout(() => {
+      setDebouncedCustomInstructions(customInstructions)
+    }, 300) // 300ms debounce
+    
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+      }
+    }
+  }, [customInstructions])
 
   // Reference to track subscription
   const channelRef = useRef<any>(null)
@@ -137,9 +160,9 @@ export default function ResumeEnhancer() {
       }
       clearTimeout(statusCheckTimeout)
     }
-  }, [resumeId, user, supabase, toast])
+  }, [resumeId, user, supabase])
 
-  const handleFileUpload = (uploadedFile: File | null, newResumeId?: string, newFilePath?: string) => {
+  const handleFileUpload = useCallback((uploadedFile: File | null, newResumeId?: string, newFilePath?: string) => {
     setFile(uploadedFile)
     if (newResumeId) setResumeId(newResumeId)
     if (newFilePath) setFilePath(newFilePath)
@@ -149,50 +172,36 @@ export default function ResumeEnhancer() {
     setIsProcessing(false)
     setProcessedFilePath(null)
     setProcessingError(null)
-  }
+  }, [])
 
-  const handleStyleToggle = (style: keyof typeof selectedStyles) => {
+  const handleStyleToggle = useCallback((style: keyof typeof selectedStyles) => {
     if (style === "styleOnly") {
       // If styleOnly is toggled on, turn off grammarFix
-      if (!selectedStyles.styleOnly) {
-        setSelectedStyles({
-          ...selectedStyles,
-          styleOnly: true,
-          grammarFix: false,
-        })
-      } else {
-        setSelectedStyles({
-          ...selectedStyles,
-          styleOnly: false,
-        })
-      }
+      setSelectedStyles(prev => ({
+        ...prev,
+        styleOnly: !prev.styleOnly,
+        grammarFix: !prev.styleOnly ? false : prev.grammarFix,
+      }))
     } else if (style === "grammarFix") {
       // If grammarFix is toggled on, turn off styleOnly
-      if (!selectedStyles.grammarFix) {
-        setSelectedStyles({
-          ...selectedStyles,
-          grammarFix: true,
-          styleOnly: false,
-        })
-      } else {
-        setSelectedStyles({
-          ...selectedStyles,
-          grammarFix: false,
-        })
-      }
+      setSelectedStyles(prev => ({
+        ...prev,
+        grammarFix: !prev.grammarFix,
+        styleOnly: !prev.grammarFix ? false : prev.styleOnly,
+      }))
     } else {
       // For professional, concise, and creative styles
       // Only one of these can be active at a time
       if (style === "professional" || style === "concise" || style === "creative") {
-        setSelectedStyles({
-          ...selectedStyles,
+        setSelectedStyles(prev => ({
+          ...prev,
           professional: style === "professional",
           concise: style === "concise",
           creative: style === "creative",
-        })
+        }))
       }
     }
-  }
+  }, [])
 
   const processResume = async () => {
     if (!user) {
@@ -235,7 +244,7 @@ export default function ResumeEnhancer() {
         body: {
           resumeId,
           enhancementStyles,
-          customInstructions: customInstructions.trim() || null,
+          customInstructions: debouncedCustomInstructions.trim() || null,
         },
       })
 
@@ -342,6 +351,18 @@ export default function ResumeEnhancer() {
 
   // Check if user is on trial plan
   const isTrialUser = profile?.subscription_type === "trial"
+
+  // Memoize ResumePreview props to prevent unnecessary re-renders
+  const resumePreviewProps = useMemo(() => ({
+    resumeId,
+    originalPath: filePath,
+    processedPath: processedFilePath
+  }), [resumeId, filePath, processedFilePath])
+
+  // Callback for handling custom instructions change
+  const handleCustomInstructionsChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setCustomInstructions(e.target.value)
+  }, [])
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -458,7 +479,7 @@ export default function ResumeEnhancer() {
                         id="custom-instructions"
                         placeholder="Make it suitable for a senior engineering role"
                         value={customInstructions}
-                        onChange={(e) => setCustomInstructions(e.target.value)}
+                        onChange={handleCustomInstructionsChange}
                         className="min-h-[80px]"
                       />
                     </div>
@@ -549,7 +570,7 @@ export default function ResumeEnhancer() {
                   <TabsTrigger value="download">Download Options</TabsTrigger>
                 </TabsList>
                 <TabsContent value="preview" className="p-4 border rounded-lg">
-                  <ResumePreview resumeId={resumeId} originalPath={filePath} processedPath={processedFilePath} />
+                  <ResumePreview {...resumePreviewProps} />
                 </TabsContent>
                 <TabsContent value="download" className="p-6 border rounded-lg">
                   <div className="text-center space-y-6">

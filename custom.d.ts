@@ -1,1 +1,4 @@
-declare module "*.ttf"; 
+declare module "*.ttf" {
+  const src: string;
+  export default src;
+}

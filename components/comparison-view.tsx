@@ -20,8 +20,7 @@ export function ComparisonView({ resumeId, originalPath, processedPath }: Compar
   const [originalResume, setOriginalResume] = useState<string>("")
   const [enhancedResume, setEnhancedResume] = useState<string>("")
   const [isLoading, setIsLoading] = useState(true)
-  const [isPdfGenerating, setIsPdfGenerating] = useState(false)
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null)
+
   const supabase = createSupabaseClient()
   const { toast } = useToast()
 
@@ -226,21 +225,6 @@ export function ComparisonView({ resumeId, originalPath, processedPath }: Compar
           <h3 className="text-sm font-medium text-gray-500 mb-2">Changes Made</h3>
           <div className="h-[400px] overflow-y-auto">{renderDiffView()}</div>
         </Card>
-      )}
-
-      {pdfUrl && (
-        <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-          <p className="text-sm text-green-800 mb-2">PDF generated successfully!</p>
-          <a
-            href={pdfUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm text-teal-600 hover:underline flex items-center"
-          >
-            <FileText className="h-4 w-4 mr-1" />
-            View or download your PDF
-          </a>
-        </div>
       )}
 
       <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">

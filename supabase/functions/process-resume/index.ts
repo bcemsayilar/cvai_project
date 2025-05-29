@@ -71,8 +71,14 @@ async function extractTextFromDocument(fileBuffer, mimeType) {
     }
     console.log(`Getting access token for Document AI...`);
     const accessToken = await getAccessToken();
-    // Convert the file buffer to base64
-    const content = btoa(String.fromCharCode.apply(null, fileBuffer));
+    // Convert the file buffer to base64 - handle large files safely
+    let binaryString = '';
+    const chunkSize = 8192; // Process in chunks to avoid stack overflow
+    for (let i = 0; i < fileBuffer.length; i += chunkSize) {
+      const chunk = fileBuffer.subarray(i, i + chunkSize);
+      binaryString += String.fromCharCode.apply(null, chunk);
+    }
+    const content = btoa(binaryString);
     const requestBody = {
       rawDocument: {
         content,

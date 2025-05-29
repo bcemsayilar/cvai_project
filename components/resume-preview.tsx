@@ -1,6 +1,6 @@
 // @ts-nocheck
 "use client"
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo, memo, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -14,18 +14,7 @@ import { PDFDownloadLink, PDFViewer } from '@react-pdf/renderer';
 import { ResumePdfDocument } from './resume-pdf-document';
 
 // Import builder components
-import { ResumeMain } from '../builder/ResumeMain';
-import { ResumeSidebar } from '../builder/ResumeSidebar';
-import { ProfileHeader } from '../builder/ProfileHeader';
-import { ContactInfo } from '../builder/ContactInfo';
-import { SocialLinks } from '../builder/SocialLinks';
-import { LanguageList } from '../builder/LanguageList';
-import { EducationSection } from '../builder/EducationSection';
-import { ExperienceSection } from '../builder/ExperienceSection';
-import { SkillsSection } from '../builder/SkillsSection';
-import { ToolsSection } from '../builder/ToolsSection';
-import { LatestProjects } from '../builder/LatestProjects';
-import { ResumeLight } from '../builder/ResumeLight';
+
 
 interface ResumePreviewProps {
   resumeId?: string | null
@@ -130,7 +119,7 @@ type ResumePreviewData = {
 // For TypeScript/JSX errors, ensure tsconfig.json has: "jsx": "react-jsx"
 // and install @types/react if not present: pnpm add -D @types/react
 
-export function ResumePreview({ resumeId, originalPath, processedPath }: ResumePreviewProps) {
+export const ResumePreview = memo(function ResumePreview({ resumeId, originalPath, processedPath }: ResumePreviewProps) {
   // State definitions
   const [viewMode, setViewMode] = useState<"preview" | "text" | "json">("preview")
   const [originalResume, setOriginalResume] = useState<string>("")
@@ -139,8 +128,11 @@ export function ResumePreview({ resumeId, originalPath, processedPath }: ResumeP
   const [isLoading, setIsLoading] = useState(true)
   const [isDarkMode, setIsDarkMode] = useState(false)
   const [activeTab, setActiveTab] = useState("preview")
-  const supabase = createSupabaseClient()
   const { toast } = useToast()
+  
+  // Create supabase client with useRef to prevent recreation on every render
+  const supabaseRef = useRef(createSupabaseClient())
+  const supabase = supabaseRef.current
 
   useEffect(() => {
     const fetchResumeData = async () => {
@@ -150,35 +142,35 @@ export function ResumePreview({ resumeId, originalPath, processedPath }: ResumeP
         return
       }
 
-      setIsLoading(true)
-      setResumePreviewError(null)
+      setIsLoading(true);
+      setResumePreviewError(null);
 
       try {
         const { data: resume, error: resumeError } = await supabase
           .from("resumes")
           .select("*")
           .eq("id", resumeId)
-          .single()
+          .single();
 
         if (resumeError) {
-          console.error("Error fetching resume:", resumeError)
-          setResumePreviewError("Error fetching resume from database.")
-          throw resumeError
+          console.error("Error fetching resume:", resumeError);
+          setResumePreviewError("Error fetching resume from database.");
+          // throw resumeError; // Removed throwing error to prevent breaking the process
         }
 
         if (!resume) {
-          setResumePreviewError("No resume data found in database.")
-          setResumePreviewData(null)
-          return
+          setResumePreviewError("No resume data found in database.");
+          setResumePreviewData(null);
+          return;
         }
 
-        let previewJson = resume.resume_preview_json
+        let previewJson = resume.resume_preview_json;
         if (typeof previewJson === "string") {
           try {
-            previewJson = JSON.parse(previewJson)
+            previewJson = JSON.parse(previewJson);
           } catch (e) {
-            setResumePreviewError("Resume preview JSON is malformed. Please try enhancing again or contact support.")
-            previewJson = null
+            setResumePreviewError("Resume preview JSON is malformed. Please try enhancing again or contact support.");
+            previewJson = null;
           }
         }
 
@@ -191,14 +183,8 @@ export function ResumePreview({ resumeId, originalPath, processedPath }: ResumeP
           if (content) {
              setResumePreviewData({ content, design }); // Set content and design together
              // Removed incomplete data check here as the PDF component handles variations
-             // if (!content.name || !design) {
-             //   setResumePreviewError(
-             //     "Resume preview data is incomplete. Some sections may be missing. You can still view the JSON or text tabs."
-             //   )
-             // }
           } else {
              // If no 'content' or 'sections', assume it might be the flat structure
-             // This might need further refinement based on actual flat data examples
              setResumePreviewData({ content: previewJson as ResumeContent, design: previewJson.design });
              // Add a generic warning if the expected structure isn't found
              if (!previewJson.name && !previewJson.sections) { // Check for a key from flat structure
@@ -208,41 +194,42 @@ export function ResumePreview({ resumeId, originalPath, processedPath }: ResumeP
 
 
         } else {
-          setResumePreviewData(null)
-          setResumePreviewError("Resume preview data is missing or empty. Please try enhancing again.")
+          setResumePreviewData(null);
+          setResumePreviewError("Resume preview data is missing or empty. Please try enhancing again.");
         }
 
         if (originalPath) {
           const { data: originalData, error: originalError } = await supabase.storage
             .from("resumes")
-            .download(originalPath)
+            .download(originalPath);
 
           if (originalError) {
-            console.error("Error downloading original resume:", originalError)
+            console.error("Error downloading original resume:", originalError);
             // Do not set original resume error, just log it
           }
 
           if (originalData) {
-            const reader = new FileReader()
+            const reader = new FileReader();
             reader.onloadend = () => {
-              setOriginalResume(reader.result as string)
-            }
-            reader.readAsText(originalData)
+              setOriginalResume(reader.result as string);
+            };
+            reader.readAsText(originalData);
           }
         }
 
       } catch (error) {
-        console.error("Failed to fetch and process resume data:", error)
+        console.error("Failed to fetch and process resume data:", error);
+        // Only set generic error if no specific error was set during data fetching
         if (!resumePreviewError) { // Avoid overwriting a more specific error
            setResumePreviewError("An unexpected error occurred while loading resume data.");
         }
       } finally {
-        setIsLoading(false)
+        setIsLoading(false);
       }
-    }
+    };
 
-    fetchResumeData()
-  }, [resumeId, originalPath, supabase, resumePreviewError])
+    fetchResumeData();
+  }, [resumeId, originalPath]) // Removed supabase from dependency array
 
   const downloadTxtFile = async () => {
     if (originalResume) {
@@ -264,9 +251,24 @@ export function ResumePreview({ resumeId, originalPath, processedPath }: ResumeP
     }
   };
 
-  const toggleDarkMode = () => {
-    setIsDarkMode(!isDarkMode);
-  };
+  // Memoize the PDF document to prevent unnecessary re-renders
+  const pdfDocument = useMemo(() => {
+    if (!resumePreviewData?.content) return null;
+    return <ResumePdfDocument resumeData={resumePreviewData} mode={isDarkMode ? 'dark' : 'light'} />;
+  }, [resumePreviewData, isDarkMode]);
+
+  // Memoize the download filename
+  const downloadFileName = useMemo(() => {
+    return `${resumePreviewData?.content?.name || 'resume'}.pdf`;
+  }, [resumePreviewData?.content?.name]);
+
+  const toggleDarkMode = useCallback(() => {
+    setIsDarkMode(prev => !prev);
+  }, []);
+
+  const handleTabChange = useCallback((value: string) => {
+    setActiveTab(value);
+  }, []);
 
   const renderResumePreview = () => {
      if (!resumePreviewData || !resumePreviewData.content) {
@@ -274,7 +276,7 @@ export function ResumePreview({ resumeId, originalPath, processedPath }: ResumeP
      }
 
      // Use PDFViewer to display the ResumePdfDocument component with proper sizing
-     return (
+    return (
          <div className="w-full" style={{ height: '80vh', minHeight: '600px' }}>
            <PDFViewer 
              width="100%"
@@ -284,13 +286,11 @@ export function ResumePreview({ resumeId, originalPath, processedPath }: ResumeP
                height: '80vh',
                minHeight: '600px'
              }}
+             key={`pdf-viewer-${resumeId}-${isDarkMode}`} // Add key to prevent unnecessary re-renders
            >
-             <ResumePdfDocument 
-               resumeData={resumePreviewData} 
-               mode={isDarkMode ? 'dark' : 'light'}
-             />
+             {pdfDocument}
            </PDFViewer>
-         </div>
+            </div>
      );
   };
 
@@ -322,7 +322,7 @@ export function ResumePreview({ resumeId, originalPath, processedPath }: ResumeP
   return (
     <Card className="w-full h-full min-h-[800px] overflow-hidden flex flex-col">
       <div className="flex items-center p-4 border-b">
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <Tabs value={activeTab} onValueChange={handleTabChange}>
           <TabsList>
             <TabsTrigger value="preview">Preview</TabsTrigger>
             <TabsTrigger value="text">Original Text</TabsTrigger>
@@ -347,10 +347,11 @@ export function ResumePreview({ resumeId, originalPath, processedPath }: ResumeP
 
           {/* Download PDF Button (using react-pdf/renderer) */}
           {/* Only show if resumePreviewData exists and has content */}
-          {resumePreviewData?.content && (
+          {pdfDocument && (
              <PDFDownloadLink
-                document={<ResumePdfDocument resumeData={resumePreviewData} mode={isDarkMode ? 'dark' : 'light'} />}
-                fileName={`${resumePreviewData.content?.name || 'resume'}.pdf`}
+                document={pdfDocument}
+                fileName={downloadFileName}
+                key={`pdf-download-${resumeId}-${isDarkMode}`} // Add key to prevent unnecessary re-renders
              >
                 {({ blob, url, loading, error }) => (
                    <Button
@@ -386,7 +387,7 @@ export function ResumePreview({ resumeId, originalPath, processedPath }: ResumeP
       <div className="flex-grow overflow-hidden" style={{ minHeight: '700px' }}>
         <div className="h-full overflow-y-auto">
             {isLoading ? (
-          <div className="space-y-4 p-4">
+              <div className="space-y-4 p-4">
             <Skeleton className="h-12 w-full" />
             <Skeleton className="h-6 w-3/4" />
             <Skeleton className="h-6 w-1/2" />
@@ -406,11 +407,11 @@ export function ResumePreview({ resumeId, originalPath, processedPath }: ResumeP
               {activeTab === "preview" && renderResumePreview()}
               {activeTab === "text" && renderTextView()}
               {activeTab === "json" && renderJsonView()}
-            </div>
+          </div>
           </>
         )}
         </div>
       </div>
     </Card>
   )
-}
+})

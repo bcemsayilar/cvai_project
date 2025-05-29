@@ -21,8 +21,9 @@ export function FileUploader({ onFileUpload, file }: FileUploaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { user } = useAuth()
   const { toast } = useToast()
-  // Initialize Supabase client synchronously
-  const supabase = createSupabaseClient()
+  // Create supabase client with useRef to prevent recreation on every render
+  const supabaseRef = useRef(createSupabaseClient())
+  const supabase = supabaseRef.current
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
@@ -132,7 +133,7 @@ export function FileUploader({ onFileUpload, file }: FileUploaderProps) {
         console.log("Resume record created:", resumeData)
 
         // Notify parent component
-        onFileUpload(file, resumeData.id, filePath)
+        onFileUpload(file, String(resumeData.id), filePath)
 
         toast({
           title: "Resume uploaded successfully",
