@@ -165,20 +165,22 @@ export function FileUploader({ onFileUpload, file }: FileUploaderProps) {
       {!file ? (
         <div
           className={`border-2 border-dashed rounded-lg p-8 text-center ${
-            isDragging ? "border-teal-500 bg-teal-50" : "border-gray-300 hover:border-teal-500 hover:bg-gray-50"
+            isDragging 
+              ? "border-teal-500 bg-teal-50 dark:bg-teal-900/20 dark:border-teal-400" 
+              : "border-gray-300 dark:border-gray-600 hover:border-teal-500 dark:hover:border-teal-400 hover:bg-gray-50 dark:hover:bg-gray-800/50"
           } transition-colors duration-150 ease-in-out`}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
           <div className="flex flex-col items-center justify-center space-y-3">
-            <div className="p-3 bg-gray-100 rounded-full">
-              <Upload className="h-6 w-6 text-gray-500" />
+            <div className="p-3 bg-gray-100 dark:bg-gray-700 rounded-full">
+              <Upload className="h-6 w-6 text-gray-500 dark:text-gray-400" />
             </div>
-            <div className="flex text-sm text-gray-600">
+            <div className="flex text-sm text-gray-600 dark:text-gray-300">
               <label
                 htmlFor="file-upload"
-                className="relative cursor-pointer rounded-md font-medium text-teal-600 hover:text-teal-500 focus-within:outline-none"
+                className="relative cursor-pointer rounded-md font-medium text-teal-600 dark:text-teal-400 hover:text-teal-500 dark:hover:text-teal-300 focus-within:outline-none"
               >
                 <span>Upload a file</span>
                 <input
@@ -194,22 +196,22 @@ export function FileUploader({ onFileUpload, file }: FileUploaderProps) {
               </label>
               <p className="pl-1">or drag and drop</p>
             </div>
-            <p className="text-xs text-gray-500">PDF, DOC, DOCX or TXT up to 10MB</p>
-            {isUploading && <p className="text-sm text-teal-600">Uploading...</p>}
+            <p className="text-xs text-gray-500 dark:text-gray-400">PDF, DOC, DOCX or TXT up to 10MB</p>
+            {isUploading && <p className="text-sm text-teal-600 dark:text-teal-400">Uploading...</p>}
           </div>
         </div>
       ) : (
-        <div className="flex items-center justify-between p-4 border rounded-lg bg-gray-50">
+        <div className="flex items-center justify-between p-4 border rounded-lg bg-gray-50 dark:bg-gray-800 dark:border-gray-600">
           <div className="flex items-center space-x-3">
-            <div className="p-2 bg-gray-200 rounded-full">
-              <File className="h-5 w-5 text-gray-700" />
+            <div className="p-2 bg-gray-200 dark:bg-gray-700 rounded-full">
+              <File className="h-5 w-5 text-gray-700 dark:text-gray-300" />
             </div>
             <div className="flex-1 truncate">
-              <p className="text-sm font-medium text-gray-900 truncate">{file.name}</p>
-              <p className="text-xs text-gray-500">{formatFileSize(file.size)}</p>
+              <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{file.name}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{formatFileSize(file.size)}</p>
             </div>
           </div>
-          <Button variant="ghost" size="sm" onClick={handleRemoveFile} className="text-gray-500 hover:text-gray-700">
+          <Button variant="ghost" size="sm" onClick={handleRemoveFile} className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
             <X className="h-4 w-4" />
             <span className="sr-only">Remove file</span>
           </Button>

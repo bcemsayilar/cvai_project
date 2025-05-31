@@ -43,40 +43,41 @@ export function EmailTest() {
   }
 
   return (
-    <Card>
+    <Card className="dark:bg-gray-900 dark:border-gray-700">
       <CardHeader>
-        <CardTitle>Email Configuration Test</CardTitle>
-        <CardDescription>Test if Supabase can send emails</CardDescription>
+        <CardTitle className="dark:text-gray-100">Email Configuration Test</CardTitle>
+        <CardDescription className="dark:text-gray-400">Test if Supabase can send emails</CardDescription>
       </CardHeader>
       <CardContent>
         {status === "success" && (
-          <Alert className="mb-4">
-            <CheckCircle className="h-4 w-4" />
-            <AlertTitle>Success</AlertTitle>
-            <AlertDescription>{message}</AlertDescription>
+          <Alert className="mb-4 dark:bg-green-900/20 dark:border-green-400/50">
+            <CheckCircle className="h-4 w-4 dark:text-green-400" />
+            <AlertTitle className="dark:text-green-400">Success</AlertTitle>
+            <AlertDescription className="dark:text-green-300">{message}</AlertDescription>
           </Alert>
         )}
 
         {status === "error" && (
-          <Alert variant="destructive" className="mb-4">
-            <XCircle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
-            <AlertDescription>{message}</AlertDescription>
+          <Alert variant="destructive" className="mb-4 dark:bg-red-900/20 dark:border-red-400/50">
+            <XCircle className="h-4 w-4 dark:text-red-400" />
+            <AlertTitle className="dark:text-red-400">Error</AlertTitle>
+            <AlertDescription className="dark:text-red-300">{message}</AlertDescription>
           </Alert>
         )}
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">Email Address</Label>
+            <Label htmlFor="email" className="dark:text-gray-300">Email Address</Label>
             <Input
               id="email"
               type="email"
               placeholder="your.email@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              className="dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100 dark:placeholder-gray-400"
             />
           </div>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
             This will send a password reset email to test if Supabase email delivery is working correctly.
           </p>
         </div>

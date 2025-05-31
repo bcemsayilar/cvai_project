@@ -115,20 +115,20 @@ export function AuthModal({ isOpen, onClose, defaultTab = "signin" }: AuthModalP
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px] dark:bg-gray-900 dark:border-gray-700">
         <DialogHeader>
-          <DialogTitle>Account Access</DialogTitle>
-          <DialogDescription>Sign in to your account or create a new one to enhance your resume.</DialogDescription>
+          <DialogTitle className="dark:text-gray-100">Account Access</DialogTitle>
+          <DialogDescription className="dark:text-gray-300">Sign in to your account or create a new one to enhance your resume.</DialogDescription>
         </DialogHeader>
         <Tabs value={activeTab} onValueChange={handleTabChange}>
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="signin">Sign In</TabsTrigger>
-            <TabsTrigger value="signup">Create Account</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2 dark:bg-gray-800">
+            <TabsTrigger value="signin" className="dark:data-[state=active]:bg-gray-700">Sign In</TabsTrigger>
+            <TabsTrigger value="signup" className="dark:data-[state=active]:bg-gray-700">Create Account</TabsTrigger>
           </TabsList>
           <TabsContent value="signin">
             <form onSubmit={handleSubmit} className="space-y-4 pt-4">
               <div className="space-y-2">
-                <Label htmlFor="signin-email">Email</Label>
+                <Label htmlFor="signin-email" className="dark:text-gray-200">Email</Label>
                 <Input
                   id="signin-email"
                   type="email"
@@ -136,16 +136,18 @@ export function AuthModal({ isOpen, onClose, defaultTab = "signin" }: AuthModalP
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  className="dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100 dark:placeholder-gray-400"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="signin-password">Password</Label>
+                <Label htmlFor="signin-password" className="dark:text-gray-200">Password</Label>
                 <Input
                   id="signin-password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  className="dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100"
                 />
               </div>
 
@@ -184,7 +186,7 @@ export function AuthModal({ isOpen, onClose, defaultTab = "signin" }: AuthModalP
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4 pt-4">
                 <div className="space-y-2">
-                  <Label htmlFor="signup-email">Email</Label>
+                  <Label htmlFor="signup-email" className="dark:text-gray-200">Email</Label>
                   <Input
                     id="signup-email"
                     type="email"
@@ -192,16 +194,18 @@ export function AuthModal({ isOpen, onClose, defaultTab = "signin" }: AuthModalP
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
+                    className="dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100 dark:placeholder-gray-400"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="signup-password">Password</Label>
+                  <Label htmlFor="signup-password" className="dark:text-gray-200">Password</Label>
                   <Input
                     id="signup-password"
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
+                    className="dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100"
                   />
                 </div>
 

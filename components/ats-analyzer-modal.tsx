@@ -88,7 +88,8 @@ export function ATSAnalyzerModal({
       
       if (fileData.type === "text/plain") {
         resumeText = await fileData.text()
-      } else if (fileData.type === "application/pdf") {
+        console.log("Extracted text from plain text file, length:", resumeText.length)
+      } else if (fileData.type === "application/pdf" || filePath!.toLowerCase().endsWith('.pdf')) {
         // For PDF files, try to extract text directly using the process-resume function
         console.log("Processing PDF file for ATS analysis...")
         
@@ -96,15 +97,17 @@ export function ATSAnalyzerModal({
           const { data: extractResult, error: extractError } = await supabase.functions.invoke("process-resume", {
             body: {
               resumeId: resumeId,  // Use resumeId instead of filePath
-              extractOnly: true    // Flag to only extract text, not enhance
+              extractOnly: true  // Flag to only extract text, not enhance
             },
           })
 
-          if (extractError || !extractResult.success) {
+          if (extractError || !extractResult || !extractResult.success) {
+            console.error("Extract error:", extractError, "Extract result:", extractResult)
             throw new Error("Failed to extract text from PDF file")
           }
 
           resumeText = extractResult.extractedText || ""
+          console.log("Extracted text length:", resumeText.length)
         } catch (pdfError) {
           console.error("PDF extraction failed, trying processed version:", pdfError)
           
@@ -116,7 +119,7 @@ export function ATSAnalyzerModal({
             .single()
 
           if (resumeError || !resumeData?.processed_file_path) {
-            throw new Error("Unable to extract text from this file type. Please try uploading a .txt file or enhance your resume first.")
+            throw new Error("Unable to extract text from PDF. Please try enhancing your resume first to generate a text version.")
           }
 
           // Get the processed text version
@@ -129,6 +132,28 @@ export function ATSAnalyzerModal({
           }
 
           resumeText = await processedFileData.text()
+        }
+      } else if (fileData.type?.startsWith("image/") || filePath!.toLowerCase().match(/\.(png|jpg|jpeg)$/)) {
+        // For image files, also try to extract text using process-resume function
+        console.log("Processing image file for ATS analysis...")
+        
+        try {
+          const { data: extractResult, error: extractError } = await supabase.functions.invoke("process-resume", {
+            body: {
+              resumeId: resumeId,
+              extractOnly: true
+            },
+          })
+
+          if (extractError || !extractResult || !extractResult.success) {
+            throw new Error("Failed to extract text from image file")
+          }
+
+          resumeText = extractResult.extractedText || ""
+          console.log("Extracted text from image, length:", resumeText.length)
+        } catch (imageError) {
+          console.error("Image extraction failed:", imageError)
+          throw new Error("Unable to extract text from image. Please try uploading a PDF or text file, or enhance your resume first.")
         }
       } else {
         // For other file types, try processed version
@@ -255,13 +280,13 @@ export function ATSAnalyzerModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto dark:bg-gray-900 dark:border-gray-700">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Target className="h-5 w-5 text-blue-600" />
+          <DialogTitle className="flex items-center gap-2 dark:text-gray-100">
+            <Target className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             ATS Compatibility Analyzer
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="dark:text-gray-300">
             Get detailed insights into how well your resume performs with Applicant Tracking Systems (ATS).
             Our AI analyzer evaluates your resume across 5 key criteria used by modern ATS platforms.
           </DialogDescription>
@@ -270,9 +295,9 @@ export function ATSAnalyzerModal({
         <div className="space-y-6">
           {/* Analysis Status */}
           {!atsScore && (
-            <Card>
+            <Card className="dark:bg-gray-800 dark:border-gray-700">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
+                <CardTitle className="flex items-center gap-2 text-lg dark:text-gray-100">
                   <FileText className="h-5 w-5" />
                   How ATS Analysis Works
                 </CardTitle>
@@ -281,58 +306,58 @@ export function ATSAnalyzerModal({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <Target className="h-4 w-4 text-blue-600" />
-                      <span className="font-medium">Keyword Matching</span>
+                      <Target className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                      <span className="font-medium dark:text-gray-200">Keyword Matching</span>
                     </div>
-                    <p className="text-muted-foreground ml-6">Analyzes relevant industry keywords and skills</p>
+                    <p className="text-muted-foreground dark:text-gray-400 ml-6">Analyzes relevant industry keywords and skills</p>
                   </div>
                   
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <CheckCircle className="h-4 w-4 text-green-600" />
-                      <span className="font-medium">Format Compatibility</span>
+                      <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+                      <span className="font-medium dark:text-gray-200">Format Compatibility</span>
                     </div>
-                    <p className="text-muted-foreground ml-6">Checks ATS-friendly formatting and structure</p>
+                    <p className="text-muted-foreground dark:text-gray-400 ml-6">Checks ATS-friendly formatting and structure</p>
                   </div>
                   
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <TrendingUp className="h-4 w-4 text-purple-600" />
-                      <span className="font-medium">Content Quality</span>
+                      <TrendingUp className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                      <span className="font-medium dark:text-gray-200">Content Quality</span>
                     </div>
-                    <p className="text-muted-foreground ml-6">Evaluates achievements and quantified results</p>
+                    <p className="text-muted-foreground dark:text-gray-400 ml-6">Evaluates achievements and quantified results</p>
                   </div>
                   
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <Lightbulb className="h-4 w-4 text-yellow-600" />
-                      <span className="font-medium">Actionable Insights</span>
+                      <Lightbulb className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+                      <span className="font-medium dark:text-gray-200">Actionable Insights</span>
                     </div>
-                    <p className="text-muted-foreground ml-6">Provides specific improvement recommendations</p>
+                    <p className="text-muted-foreground dark:text-gray-400 ml-6">Provides specific improvement recommendations</p>
                   </div>
                 </div>
 
                 {/* ATS Usage Indicator */}
                 {profile && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Target className="h-4 w-4 text-blue-600" />
-                        <span className="text-sm font-medium text-blue-900">ATS Analyses Used</span>
+                        <Target className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                        <span className="text-sm font-medium text-blue-900 dark:text-blue-200">ATS Analyses Used</span>
                       </div>
                       <div className="text-right">
-                        <div className="text-lg font-bold text-blue-900">
+                        <div className="text-lg font-bold text-blue-900 dark:text-blue-200">
                           {profile.ats_analyses_used || 0} / {profile.ats_analyses_limit || 5}
                         </div>
-                        <div className="text-xs text-blue-600">
+                        <div className="text-xs text-blue-600 dark:text-blue-400">
                           {(profile.ats_analyses_limit || 5) - (profile.ats_analyses_used || 0)} remaining
                         </div>
                       </div>
                     </div>
                     <div className="mt-2">
-                      <div className="w-full bg-blue-200 rounded-full h-2">
+                      <div className="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
                         <div 
-                          className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                          className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all duration-300" 
                           style={{ 
                             width: `${Math.min(100, ((profile.ats_analyses_used || 0) / (profile.ats_analyses_limit || 5)) * 100)}%` 
                           }}
@@ -340,7 +365,7 @@ export function ATSAnalyzerModal({
                       </div>
                     </div>
                     {(profile.ats_analyses_used || 0) >= (profile.ats_analyses_limit || 5) && (
-                      <div className="mt-2 text-xs text-red-600">
+                      <div className="mt-2 text-xs text-red-600 dark:text-red-400">
                         You've reached your analysis limit. Upgrade for unlimited analyses.
                       </div>
                     )}
@@ -382,11 +407,11 @@ export function ATSAnalyzerModal({
           {atsScore && (
             <div className="space-y-6">
               <div className="text-center">
-                <div className="inline-flex items-center justify-center p-3 bg-green-100 rounded-full mb-4">
-                  <CheckCircle className="h-8 w-8 text-green-600" />
+                <div className="inline-flex items-center justify-center p-3 bg-green-100 dark:bg-green-900/20 rounded-full mb-4">
+                  <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900">Analysis Complete!</h3>
-                <p className="text-gray-600 mt-2">Here's how your resume performs with ATS systems</p>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">Analysis Complete!</h3>
+                <p className="text-gray-600 dark:text-gray-300 mt-2">Here's how your resume performs with ATS systems</p>
               </div>
 
               <ATSScoreDisplay originalScore={atsScore} />

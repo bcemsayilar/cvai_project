@@ -31,9 +31,9 @@ export function ATSScoreDisplay({ originalScore, enhancedScore, className }: ATS
     : 0
 
   const getScoreColor = (score: number) => {
-    if (score >= 80) return "text-green-600"
-    if (score >= 60) return "text-yellow-600"
-    return "text-red-600"
+    if (score >= 80) return "text-green-600 dark:text-green-400"
+    if (score >= 60) return "text-yellow-600 dark:text-yellow-400"
+    return "text-red-600 dark:text-red-400"
   }
 
   const getScoreBadgeVariant = (score: number) => {
@@ -43,19 +43,19 @@ export function ATSScoreDisplay({ originalScore, enhancedScore, className }: ATS
   }
 
   return (
-    <Card className={className}>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+    <Card className={`${className} dark:bg-gray-900 dark:border-gray-700`}>
+      <CardHeader className="text-center">
+        <CardTitle className="flex items-center justify-center gap-2 dark:text-gray-100">
           <Target className="h-5 w-5" />
           ATS Score Analysis
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Overall Score Comparison */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className={`grid gap-4 ${originalScore && enhancedScore ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'}`}>
           {originalScore && (
             <div className="text-center">
-              <div className="text-sm text-muted-foreground mb-2">Original Score</div>
+              <div className="text-sm text-muted-foreground dark:text-gray-400 mb-2">Original Score</div>
               <div className={`text-3xl font-bold ${getScoreColor(originalScore.overallScore)}`}>
                 {originalScore.overallScore}
               </div>
@@ -68,7 +68,7 @@ export function ATSScoreDisplay({ originalScore, enhancedScore, className }: ATS
           
           {enhancedScore && (
             <div className="text-center">
-              <div className="text-sm text-muted-foreground mb-2">Enhanced Score</div>
+              <div className="text-sm text-muted-foreground dark:text-gray-400 mb-2">Enhanced Score</div>
               <div className={`text-3xl font-bold ${getScoreColor(enhancedScore.overallScore)}`}>
                 {enhancedScore.overallScore}
               </div>
@@ -78,27 +78,25 @@ export function ATSScoreDisplay({ originalScore, enhancedScore, className }: ATS
               </Badge>
             </div>
           )}
-        </div>
-
-        {/* Improvement Indicator */}
+        </div>        {/* Improvement Indicator */}
         {originalScore && enhancedScore && (
-          <div className="text-center py-4 border rounded-lg bg-muted/50">
+          <div className="text-center py-4 border rounded-lg bg-muted/50 dark:bg-gray-800/50 dark:border-gray-600">
             <div className="flex items-center justify-center gap-2 mb-2">
               {improvement > 0 ? (
-                <TrendingUp className="h-5 w-5 text-green-600" />
+                <TrendingUp className="h-5 w-5 text-green-600 dark:text-green-400" />
               ) : improvement < 0 ? (
-                <TrendingDown className="h-5 w-5 text-red-600" />
+                <TrendingDown className="h-5 w-5 text-red-600 dark:text-red-400" />
               ) : (
-                <Target className="h-5 w-5 text-blue-600" />
+                <Target className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               )}
-              <span className="font-semibold">
+              <span className="font-semibold dark:text-gray-100">
                 {improvement > 0 ? `+${improvement}` : improvement} point improvement
               </span>
             </div>
-            <div className="text-sm text-muted-foreground">
+            <div className="text-sm text-muted-foreground dark:text-gray-400">
               {improvement > 0 
                 ? "Great job! Your resume is now more ATS-friendly." 
-                : improvement < 0 
+                : improvement < 0
                 ? "The enhancement focused on visual appeal over ATS optimization."
                 : "Your ATS score remained the same."}
             </div>
@@ -108,7 +106,7 @@ export function ATSScoreDisplay({ originalScore, enhancedScore, className }: ATS
         {/* Detailed Breakdown */}
         {(enhancedScore || originalScore) && (
           <div className="space-y-4">
-            <h4 className="font-semibold">Score Breakdown</h4>
+            <h4 className="font-semibold dark:text-gray-100">Score Breakdown</h4>
             
             {/* Use enhanced score if available, otherwise use original score */}
             {(() => {
@@ -165,14 +163,14 @@ export function ATSScoreDisplay({ originalScore, enhancedScore, className }: ATS
           const scoreToShow = enhancedScore || originalScore
           return scoreToShow?.recommendations && scoreToShow.recommendations.length > 0 && (
             <div className="space-y-2">
-              <h4 className="font-semibold flex items-center gap-2">
+              <h4 className="font-semibold flex items-center gap-2 dark:text-gray-100">
                 <AlertCircle className="h-4 w-4" />
                 Recommendations
               </h4>
-              <ul className="space-y-1 text-sm">
+              <ul className="space-y-1 text-sm dark:text-gray-200">
                 {scoreToShow.recommendations.map((rec, index) => (
                   <li key={index} className="flex items-start gap-2">
-                    <span className="text-muted-foreground">•</span>
+                    <span className="text-muted-foreground dark:text-gray-400">•</span>
                     <span>{rec}</span>
                   </li>
                 ))}

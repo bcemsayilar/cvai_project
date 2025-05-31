@@ -332,11 +332,11 @@ export const ResumePreview = memo(function ResumePreview({
 
   const renderTextView = () => {
     return originalResume ? (
-      <div className="p-4 bg-gray-100 rounded-md whitespace-pre-wrap text-gray-800 font-mono text-sm">
+      <div className="p-4 bg-gray-100 dark:bg-gray-800 rounded-md whitespace-pre-wrap text-gray-800 dark:text-gray-200 font-mono text-sm">
         {originalResume}
                   </div>
     ) : (
-      <div className="p-4 bg-gray-100 rounded-md text-gray-600 font-mono text-sm">
+      <div className="p-4 bg-gray-100 dark:bg-gray-800 rounded-md text-gray-600 dark:text-gray-400 font-mono text-sm">
         No original text content available.
       </div>
     )
@@ -344,11 +344,11 @@ export const ResumePreview = memo(function ResumePreview({
 
   const renderJsonView = () => {
     return resumePreviewData ? (
-      <div className="p-4 bg-gray-100 rounded-md whitespace-pre-wrap text-gray-800 font-mono text-sm">
+      <div className="p-4 bg-gray-100 dark:bg-gray-800 rounded-md whitespace-pre-wrap text-gray-800 dark:text-gray-200 font-mono text-sm">
         {JSON.stringify(resumePreviewData, null, 2)}
       </div>
     ) : (
-      <div className="p-4 bg-gray-100 rounded-md text-gray-600 font-mono text-sm">
+      <div className="p-4 bg-gray-100 dark:bg-gray-800 rounded-md text-gray-600 dark:text-gray-400 font-mono text-sm">
         No JSON preview data available.
       </div>
     )
@@ -358,19 +358,19 @@ export const ResumePreview = memo(function ResumePreview({
 
 
   return (
-    <Card className="w-full h-full min-h-[800px] overflow-hidden flex flex-col">
-      <div className="flex items-center p-4 border-b">
+    <Card className="w-full h-full min-h-[800px] overflow-hidden flex flex-col dark:bg-gray-900 dark:border-gray-700">
+      <div className="flex items-center p-4 border-b dark:border-gray-700">
         <Tabs value={activeTab} onValueChange={handleTabChange}>
-          <TabsList>
-            <TabsTrigger value="preview">Preview</TabsTrigger>
-            <TabsTrigger value="text">Original Text</TabsTrigger>
-            <TabsTrigger value="json">JSON Data</TabsTrigger>
+          <TabsList className="dark:bg-gray-800">
+            <TabsTrigger value="preview" className="dark:data-[state=active]:bg-gray-700">Preview</TabsTrigger>
+            <TabsTrigger value="text" className="dark:data-[state=active]:bg-gray-700">Original Text</TabsTrigger>
+            <TabsTrigger value="json" className="dark:data-[state=active]:bg-gray-700">JSON Data</TabsTrigger>
           </TabsList>
         </Tabs>
         <div className="ml-auto flex items-center space-x-4">
            {/* Warning Message - Keep for now as data might be incomplete */}
             {resumePreviewError && activeTab === "preview" && (
-              <div className="text-yellow-600 flex items-center space-x-1">
+              <div className="text-yellow-600 dark:text-yellow-400 flex items-center space-x-1">
                 <AlertTriangle size={18} />
                 <span>{resumePreviewError}</span>
               </div>
@@ -380,14 +380,14 @@ export const ResumePreview = memo(function ResumePreview({
             {atsScoreOriginal && atsScoreEnhanced && (
               <Dialog>
                 <DialogTrigger asChild>
-                  <Button variant="outline" className="flex items-center space-x-2">
+                  <Button variant="outline" className="flex items-center space-x-2 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800">
                     <BarChart3 size={18} />
                     <span>Compare ATS Scores</span>
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto dark:bg-gray-900 dark:border-gray-700">
                   <DialogHeader>
-                    <DialogTitle>ATS Score Comparison</DialogTitle>
+                    <DialogTitle className="dark:text-gray-100">ATS Score Comparison</DialogTitle>
                   </DialogHeader>
                   <ATSScoreDisplay 
                     originalScore={atsScoreOriginal} 
@@ -399,9 +399,9 @@ export const ResumePreview = memo(function ResumePreview({
 
            {/* Dark Mode Toggle */}
             <div className="flex items-center space-x-2">
-               <Sun size={18} className="text-gray-500"/>
+               <Sun size={18} className="text-gray-500 dark:text-gray-400"/>
                <Switch checked={isDarkMode} onCheckedChange={toggleDarkMode} id="dark-mode" />
-               <Moon size={18} className="text-gray-500"/>
+               <Moon size={18} className="text-gray-500 dark:text-gray-400"/>
             </div>
 
           {/* Download PDF Button (using react-pdf/renderer) */}
@@ -432,7 +432,7 @@ export const ResumePreview = memo(function ResumePreview({
           {/* Download Original Text Button */}
            {originalResume && (
             <Button
-                className="flex items-center space-x-2"
+                className="flex items-center space-x-2 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
                 onClick={downloadTxtFile}
                 variant="outline"
              >
@@ -457,7 +457,7 @@ export const ResumePreview = memo(function ResumePreview({
           <>
             {resumePreviewError && activeTab !== "json" && (
                // Moved the error message here to be part of the content area
-              <div className="text-yellow-600 flex items-center space-x-1 p-4 bg-yellow-50 rounded-md mb-4 mx-4">
+              <div className="text-yellow-600 dark:text-yellow-400 flex items-center space-x-1 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-md mb-4 mx-4">
                 <AlertTriangle size={18} />
                 <span>{resumePreviewError}</span>
               </div>

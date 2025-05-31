@@ -84,8 +84,6 @@ export function ComparisonView({ resumeId, originalPath, processedPath }: Compar
     fetchResumeContent()
   }, [originalPath, processedPath, supabase, toast])
 
-
-
   const downloadTxtFile = async () => {
     if (!processedPath) return
 
@@ -143,36 +141,36 @@ export function ComparisonView({ resumeId, originalPath, processedPath }: Compar
 
     // Add some sample diff lines for demonstration
     diffLines.push(
-      <div key="diff-1" className="bg-red-50 text-red-800 line-through p-1 mb-1">
+      <div key="diff-1" className="bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300 line-through p-1 mb-1">
         Junior Developer, ABC Tech
       </div>,
     )
     diffLines.push(
-      <div key="diff-2" className="bg-green-50 text-green-800 p-1 mb-3">
+      <div key="diff-2" className="bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300 p-1 mb-3">
         Software Engineer, ABC Tech
       </div>,
     )
     diffLines.push(
-      <div key="diff-3" className="bg-red-50 text-red-800 line-through p-1 mb-1">
+      <div key="diff-3" className="bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300 line-through p-1 mb-1">
         - Worked on web applications using React
       </div>,
     )
     diffLines.push(
-      <div key="diff-4" className="bg-green-50 text-green-800 p-1 mb-1">
+      <div key="diff-4" className="bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300 p-1 mb-1">
         • Engineered responsive web applications using React.js, resulting in 30% improvement in user engagement
       </div>,
     )
 
-    return <div className="bg-white p-4 rounded-lg border text-sm font-mono whitespace-pre-wrap">{diffLines}</div>
+    return <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border dark:border-gray-600 text-sm font-mono whitespace-pre-wrap">{diffLines}</div>
   }
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center mb-4">
         <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as "side-by-side" | "diff")}>
-          <TabsList>
-            <TabsTrigger value="side-by-side">Side by Side</TabsTrigger>
-            <TabsTrigger value="diff">Changes View</TabsTrigger>
+          <TabsList className="dark:bg-gray-800">
+            <TabsTrigger value="side-by-side" className="dark:data-[state=active]:bg-gray-700">Side by Side</TabsTrigger>
+            <TabsTrigger value="diff" className="dark:data-[state=active]:bg-gray-700">Changes View</TabsTrigger>
           </TabsList>
         </Tabs>
 
@@ -181,16 +179,14 @@ export function ComparisonView({ resumeId, originalPath, processedPath }: Compar
             <Download className="h-4 w-4 mr-2" />
             Download TXT
           </Button>
-
-
         </div>
       </div>
 
       {viewMode === "side-by-side" ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Card className="p-4">
-            <h3 className="text-sm font-medium text-gray-500 mb-2">Original Resume</h3>
-            <div className="bg-white p-4 rounded-lg border h-[400px] overflow-y-auto text-sm font-mono whitespace-pre-wrap">
+          <Card className="p-4 dark:bg-gray-900 dark:border-gray-700">
+            <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Original Resume</h3>
+            <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border dark:border-gray-600 h-[400px] overflow-y-auto text-sm font-mono whitespace-pre-wrap">
               {isLoading ? (
                 <div className="space-y-4">
                   <Skeleton className="h-4 w-full" />
@@ -204,9 +200,9 @@ export function ComparisonView({ resumeId, originalPath, processedPath }: Compar
             </div>
           </Card>
 
-          <Card className="p-4">
-            <h3 className="text-sm font-medium text-gray-500 mb-2">Enhanced Resume</h3>
-            <div className="bg-white p-4 rounded-lg border h-[400px] overflow-y-auto text-sm font-mono whitespace-pre-wrap">
+          <Card className="p-4 dark:bg-gray-900 dark:border-gray-700">
+            <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Enhanced Resume</h3>
+            <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border dark:border-gray-600 h-[400px] overflow-y-auto text-sm font-mono whitespace-pre-wrap">
               {isLoading ? (
                 <div className="space-y-4">
                   <Skeleton className="h-4 w-full" />
@@ -221,35 +217,35 @@ export function ComparisonView({ resumeId, originalPath, processedPath }: Compar
           </Card>
         </div>
       ) : (
-        <Card className="p-4">
-          <h3 className="text-sm font-medium text-gray-500 mb-2">Changes Made</h3>
+        <Card className="p-4 dark:bg-gray-900 dark:border-gray-700">
+          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Changes Made</h3>
           <div className="h-[400px] overflow-y-auto">{renderDiffView()}</div>
         </Card>
       )}
 
-      <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-        <h3 className="text-sm font-medium text-gray-900 mb-2">AI Enhancement Summary</h3>
-        <ul className="space-y-2 text-sm text-gray-600">
+      <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-lg border border-gray-200 dark:border-gray-600">
+        <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">AI Enhancement Summary</h3>
+        <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
           <li className="flex items-start">
-            <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-teal-100 text-teal-700 mr-2">
+            <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-300 mr-2">
               1
             </span>
             <span>Professional title upgraded for better industry alignment</span>
           </li>
           <li className="flex items-start">
-            <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-teal-100 text-teal-700 mr-2">
+            <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-300 mr-2">
               2
             </span>
             <span>Added quantifiable achievements with metrics where possible</span>
           </li>
           <li className="flex items-start">
-            <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-teal-100 text-teal-700 mr-2">
+            <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-300 mr-2">
               3
             </span>
             <span>Expanded technical skills section with relevant technologies</span>
           </li>
           <li className="flex items-start">
-            <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-teal-100 text-teal-700 mr-2">
+            <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-300 mr-2">
               4
             </span>
             <span>Improved formatting with bullet points and consistent styling</span>

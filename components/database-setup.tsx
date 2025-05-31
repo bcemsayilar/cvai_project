@@ -58,32 +58,32 @@ export function DatabaseSetup() {
   }
 
   return (
-    <Card>
+    <Card className="dark:bg-gray-900 dark:border-gray-700">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Database className="h-5 w-5" />
+        <CardTitle className="flex items-center gap-2 dark:text-gray-100">
+          <Database className="h-5 w-5 dark:text-gray-400" />
           Database Setup
         </CardTitle>
-        <CardDescription>Create the necessary database tables for the ResumeAI application</CardDescription>
+        <CardDescription className="dark:text-gray-400">Create the necessary database tables for the ResumeAI application</CardDescription>
       </CardHeader>
       <CardContent>
         {status === "success" && (
-          <Alert className="mb-4">
-            <CheckCircle className="h-4 w-4" />
-            <AlertTitle>Success</AlertTitle>
-            <AlertDescription>{message}</AlertDescription>
+          <Alert className="mb-4 dark:bg-green-900/20 dark:border-green-400/50">
+            <CheckCircle className="h-4 w-4 dark:text-green-400" />
+            <AlertTitle className="dark:text-green-400">Success</AlertTitle>
+            <AlertDescription className="dark:text-green-300">{message}</AlertDescription>
           </Alert>
         )}
 
         {status === "error" && (
-          <Alert variant="destructive" className="mb-4">
-            <XCircle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
-            <AlertDescription>{message}</AlertDescription>
+          <Alert variant="destructive" className="mb-4 dark:bg-red-900/20 dark:border-red-400/50">
+            <XCircle className="h-4 w-4 dark:text-red-400" />
+            <AlertTitle className="dark:text-red-400">Error</AlertTitle>
+            <AlertDescription className="dark:text-red-300">{message}</AlertDescription>
           </Alert>
         )}
 
-        <p className="text-sm text-gray-500 mb-4">
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
           This will create the necessary database tables for the ResumeAI application. You need to run this once to set
           up the database.
         </p>

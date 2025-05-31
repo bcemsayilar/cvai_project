@@ -437,12 +437,12 @@ export default function ResumeEnhancer() {
 
       <main className="flex-1">
         {/* Hero Section */}
-        <section className="relative py-20 px-4 sm:px-6 lg:px-8 bg-white">
+        <section className="relative py-20 px-4 sm:px-6 lg:px-8 bg-white dark:bg-gray-900">
           <div className="max-w-4xl mx-auto text-center">
-            <h1 className="text-4xl font-extrabold tracking-tight text-gray-900 sm:text-5xl md:text-6xl">
-              Transform Your Resume <span className="text-teal-600">Instantly</span>
+            <h1 className="text-4xl font-extrabold tracking-tight text-gray-900 dark:text-white sm:text-5xl md:text-6xl">
+              Transform Your Resume <span className="text-teal-600 dark:text-teal-400">Instantly</span>
             </h1>
-            <p className="mt-3 max-w-md mx-auto text-base text-gray-500 sm:text-lg md:mt-5 md:text-xl md:max-w-3xl">
+            <p className="mt-3 max-w-md mx-auto text-base text-gray-500 dark:text-gray-400 sm:text-lg md:mt-5 md:text-xl md:max-w-3xl">
               AI-powered resume enhancements tailored to your style and profession
             </p>
             <div className="mt-8 flex justify-center">
@@ -455,7 +455,7 @@ export default function ResumeEnhancer() {
                 Upload Your Resume
               </Button>
             </div>
-            <div className="mt-4 flex justify-center space-x-2 text-sm text-gray-500">
+            <div className="mt-4 flex justify-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
               <Lock className="h-4 w-4" />
               <span>Your resume stays private and secure</span>
             </div>
@@ -463,24 +463,24 @@ export default function ResumeEnhancer() {
         </section>
 
         {/* Upload & Interaction Area */}
-        <section id="upload-section" className="py-16 px-4 sm:px-6 lg:px-8 bg-gray-50">
+        <section id="upload-section" className="py-16 px-4 sm:px-6 lg:px-8 bg-gray-50 dark:bg-gray-800">
           <div className="max-w-4xl mx-auto">
-            <Card className="p-6 sm:p-10 bg-white shadow-lg rounded-xl">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">Enhance Your Resume</h2>
+            <Card className="p-6 sm:p-10 bg-white dark:bg-gray-900 shadow-lg rounded-xl border-gray-200 dark:border-gray-700">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Enhance Your Resume</h2>
 
               {!isAuthLoading && user && profile && (
-                <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-gray-700">
+                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
                         Plan: <span className="font-semibold capitalize">{profile.subscription_type}</span>
                       </p>
-                      <p className="text-sm text-gray-500">
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
                         {profile.resumes_used} of {profile.resumes_limit} resumes used
                       </p>
                     </div>
                     {profile.resumes_used >= profile.resumes_limit && (
-                      <div className="flex items-center text-amber-600">
+                      <div className="flex items-center text-amber-600 dark:text-amber-500">
                         <AlertTriangle className="h-4 w-4 mr-1" />
                         <span className="text-sm font-medium">Limit reached</span>
                       </div>
@@ -492,54 +492,54 @@ export default function ResumeEnhancer() {
               <div className="space-y-8">
                 {/* File Upload */}
                 <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-3">1. Upload Your Resume</h3>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-3">1. Upload Your Resume</h3>
                   <FileUploader onFileUpload={handleFileUpload} file={file} />
                 </div>
 
                 {/* Style Selection */}
                 {file && (
                   <div>
-                    <h3 className="text-lg font-medium text-gray-900 mb-3">2. Select Enhancement Style</h3>
+                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-3">2. Select Enhancement Style</h3>
                     <div className="flex flex-wrap gap-3 mb-6">
                       <Toggle
                         pressed={selectedStyles.professional}
                         onPressedChange={() => handleStyleToggle("professional")}
-                        className="data-[state=on]:bg-teal-100 data-[state=on]:text-teal-900 data-[state=on]:border-teal-200"
+                        className="data-[state=on]:bg-teal-100 data-[state=on]:text-teal-900 data-[state=on]:border-teal-200 dark:data-[state=on]:bg-teal-900 dark:data-[state=on]:text-teal-100 dark:data-[state=on]:border-teal-800 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300"
                       >
                         Professional Style
                       </Toggle>
                       <Toggle
                         pressed={selectedStyles.concise}
                         onPressedChange={() => handleStyleToggle("concise")}
-                        className="data-[state=on]:bg-teal-100 data-[state=on]:text-teal-900 data-[state=on]:border-teal-200"
+                        className="data-[state=on]:bg-teal-100 data-[state=on]:text-teal-900 data-[state=on]:border-teal-200 dark:data-[state=on]:bg-teal-900 dark:data-[state=on]:text-teal-100 dark:data-[state=on]:border-teal-800 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300"
                       >
                         Clear & Concise
                       </Toggle>
                       <Toggle
                         pressed={selectedStyles.creative}
                         onPressedChange={() => handleStyleToggle("creative")}
-                        className="data-[state=on]:bg-teal-100 data-[state=on]:text-teal-900 data-[state=on]:border-teal-200"
+                        className="data-[state=on]:bg-teal-100 data-[state=on]:text-teal-900 data-[state=on]:border-teal-200 dark:data-[state=on]:bg-teal-900 dark:data-[state=on]:text-teal-100 dark:data-[state=on]:border-teal-800 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300"
                       >
                         Clever & Artistic
                       </Toggle>
                       <Toggle
                         pressed={selectedStyles.grammarFix}
                         onPressedChange={() => handleStyleToggle("grammarFix")}
-                        className="data-[state=on]:bg-teal-100 data-[state=on]:text-teal-900 data-[state=on]:border-teal-200"
+                        className="data-[state=on]:bg-teal-100 data-[state=on]:text-teal-900 data-[state=on]:border-teal-200 dark:data-[state=on]:bg-teal-900 dark:data-[state=on]:text-teal-100 dark:data-[state=on]:border-teal-800 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300"
                       >
                         Grammar & Issue Fixes
                       </Toggle>
                       <Toggle
                         pressed={selectedStyles.styleOnly}
                         onPressedChange={() => handleStyleToggle("styleOnly")}
-                        className="data-[state=on]:bg-teal-100 data-[state=on]:text-teal-900 data-[state=on]:border-teal-200"
+                        className="data-[state=on]:bg-teal-100 data-[state=on]:text-teal-900 data-[state=on]:border-teal-200 dark:data-[state=on]:bg-teal-900 dark:data-[state=on]:text-teal-100 dark:data-[state=on]:border-teal-800 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300"
                       >
                         Style Only (No text changes)
                       </Toggle>
                     </div>
 
                     <div className="mb-6">
-                      <label htmlFor="custom-instructions" className="block text-sm font-medium text-gray-700 mb-1">
+                      <label htmlFor="custom-instructions" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         Or, describe your desired changes briefly:
                       </label>
                       <Textarea
@@ -547,7 +547,7 @@ export default function ResumeEnhancer() {
                         placeholder="Make it suitable for a senior engineering role"
                         value={customInstructions}
                         onChange={handleCustomInstructionsChange}
-                        className="min-h-[80px]"
+                        className="min-h-[80px] bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400"
                       />
                     </div>
 
@@ -583,13 +583,13 @@ export default function ResumeEnhancer() {
                         onClick={openATSAnalyzer}
                         disabled={!user || (profile ? profile.ats_analyses_used >= profile.ats_analyses_limit : false)}
                         variant="outline"
-                        className="w-full border-blue-200 hover:bg-blue-50 hover:border-blue-300 disabled:opacity-50"
+                        className="w-full border-blue-200 dark:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-950 hover:border-blue-300 dark:hover:border-blue-700 disabled:opacity-50 text-gray-900 dark:text-white"
                         size="lg"
                       >
                         <FileText className="mr-2 h-4 w-4" />
                         Analyze ATS Compatibility
                         {profile && (
-                          <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                          <span className="ml-2 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-2 py-1 rounded">
                             {profile.ats_analyses_used || 0}/{profile.ats_analyses_limit || 5}
                           </span>
                         )}
@@ -682,14 +682,14 @@ export default function ResumeEnhancer() {
 
         {/* Results Section */}
         {isComplete && (
-          <section className="py-16 px-4 sm:px-6 lg:px-8 bg-white">
+          <section className="py-16 px-4 sm:px-6 lg:px-8 bg-white dark:bg-gray-900">
             <div className="max-w-5xl mx-auto">
               <div className="text-center mb-10">
-                <div className="inline-flex items-center justify-center p-2 bg-green-100 rounded-full mb-4">
-                  <CheckCircle className="h-8 w-8 text-green-600" />
+                <div className="inline-flex items-center justify-center p-2 bg-green-100 dark:bg-green-900 rounded-full mb-4">
+                  <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />
                 </div>
-                <h2 className="text-2xl font-bold text-gray-900">Your Enhanced Resume is Ready!</h2>
-                <p className="text-gray-500 mt-2">Review the improvements below and download your enhanced resume.</p>
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Your Enhanced Resume is Ready!</h2>
+                <p className="text-gray-500 dark:text-gray-400 mt-2">Review the improvements below and download your enhanced resume.</p>
               </div>
 
               {/* ATS Score Display */}
@@ -703,17 +703,17 @@ export default function ResumeEnhancer() {
               )}
 
               <Tabs defaultValue="preview" className="w-full mb-8">
-                <TabsList className="grid w-full grid-cols-2 mb-6">
-                  <TabsTrigger value="preview">Preview Changes</TabsTrigger>
-                  <TabsTrigger value="download">Download Options</TabsTrigger>
+                <TabsList className="grid w-full grid-cols-2 mb-6 bg-gray-100 dark:bg-gray-800">
+                  <TabsTrigger value="preview" className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 data-[state=active]:text-gray-900 dark:data-[state=active]:text-white text-gray-700 dark:text-gray-300">Preview Changes</TabsTrigger>
+                  <TabsTrigger value="download" className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 data-[state=active]:text-gray-900 dark:data-[state=active]:text-white text-gray-700 dark:text-gray-300">Download Options</TabsTrigger>
                 </TabsList>
-                <TabsContent value="preview" className="p-4 border rounded-lg">
+                <TabsContent value="preview" className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800">
                   <ResumePreview {...resumePreviewProps} />
                 </TabsContent>
-                <TabsContent value="download" className="p-6 border rounded-lg">
+                <TabsContent value="download" className="p-6 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800">
                   <div className="text-center space-y-6">
-                    <h3 className="text-lg font-medium">Download Your Enhanced Resume</h3>
-                    <p className="text-gray-500">Choose your preferred format below</p>
+                    <h3 className="text-lg font-medium text-gray-900 dark:text-white">Download Your Enhanced Resume</h3>
+                    <p className="text-gray-500 dark:text-gray-400">Choose your preferred format below</p>
 
                     <div className="flex flex-col sm:flex-row gap-4 justify-center">
                       <Button
@@ -743,78 +743,78 @@ export default function ResumeEnhancer() {
         )}
 
         {/* How It Works Section */}
-        <section id="how-it-works" className="py-16 px-4 sm:px-6 lg:px-8 bg-gray-50">
+        <section id="how-it-works" className="py-16 px-4 sm:px-6 lg:px-8 bg-gray-50 dark:bg-gray-800">
           <div className="max-w-5xl mx-auto">
             <div className="text-center mb-12">
-              <h2 className="text-3xl font-bold text-gray-900">How It Works</h2>
-              <p className="mt-4 text-lg text-gray-600 max-w-2xl mx-auto">
+              <h2 className="text-3xl font-bold text-gray-900 dark:text-white">How It Works</h2>
+              <p className="mt-4 text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
                 Transform your resume in three simple steps, plus get ATS compatibility insights
               </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-              <div className="bg-white p-6 rounded-lg shadow-md">
-                <div className="w-12 h-12 bg-teal-100 rounded-full flex items-center justify-center mb-4">
-                  <Upload className="h-6 w-6 text-teal-600" />
+              <div className="bg-white dark:bg-gray-900 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+                <div className="w-12 h-12 bg-teal-100 dark:bg-teal-900 rounded-full flex items-center justify-center mb-4">
+                  <Upload className="h-6 w-6 text-teal-600 dark:text-teal-400" />
                 </div>
-                <h3 className="text-xl font-semibold mb-2">1. Upload</h3>
-                <p className="text-gray-600">Upload your existing resume in PDF, DOC, DOCX, or TXT format.</p>
+                <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">1. Upload</h3>
+                <p className="text-gray-600 dark:text-gray-400">Upload your existing resume in PDF, DOC, DOCX, or TXT format.</p>
               </div>
 
-              <div className="bg-white p-6 rounded-lg shadow-md">
-                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4">
-                  <FileText className="h-6 w-6 text-blue-600" />
+              <div className="bg-white dark:bg-gray-900 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+                <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center mb-4">
+                  <FileText className="h-6 w-6 text-blue-600 dark:text-blue-400" />
                 </div>
-                <h3 className="text-xl font-semibold mb-2">2. Analyze</h3>
-                <p className="text-gray-600">
+                <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">2. Analyze</h3>
+                <p className="text-gray-600 dark:text-gray-400">
                   Get instant ATS compatibility scoring to see how recruiters' systems will read your resume.
                 </p>
               </div>
 
-              <div className="bg-white p-6 rounded-lg shadow-md">
-                <div className="w-12 h-12 bg-teal-100 rounded-full flex items-center justify-center mb-4">
-                  <Sparkles className="h-6 w-6 text-teal-600" />
+              <div className="bg-white dark:bg-gray-900 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+                <div className="w-12 h-12 bg-teal-100 dark:bg-teal-900 rounded-full flex items-center justify-center mb-4">
+                  <Sparkles className="h-6 w-6 text-teal-600 dark:text-teal-400" />
                 </div>
-                <h3 className="text-xl font-semibold mb-2">3. Enhance</h3>
-                <p className="text-gray-600">
+                <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">3. Enhance</h3>
+                <p className="text-gray-600 dark:text-gray-400">
                   Our AI analyzes and enhances your resume based on your selected style preferences.
                 </p>
               </div>
 
-              <div className="bg-white p-6 rounded-lg shadow-md">
-                <div className="w-12 h-12 bg-teal-100 rounded-full flex items-center justify-center mb-4">
-                  <Download className="h-6 w-6 text-teal-600" />
+              <div className="bg-white dark:bg-gray-900 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+                <div className="w-12 h-12 bg-teal-100 dark:bg-teal-900 rounded-full flex items-center justify-center mb-4">
+                  <Download className="h-6 w-6 text-teal-600 dark:text-teal-400" />
                 </div>
-                <h3 className="text-xl font-semibold mb-2">4. Download</h3>
-                <p className="text-gray-600">Review the changes and download your professionally enhanced resume.</p>
+                <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">4. Download</h3>
+                <p className="text-gray-600 dark:text-gray-400">Review the changes and download your professionally enhanced resume.</p>
               </div>
             </div>
           </div>
         </section>
 
         {/* Examples Section */}
-        <section id="examples" className="py-16 px-4 sm:px-6 lg:px-8 bg-white">
+        <section id="examples" className="py-16 px-4 sm:px-6 lg:px-8 bg-white dark:bg-gray-900">
           <div className="max-w-5xl mx-auto">
             <div className="text-center mb-12">
-              <h2 className="text-3xl font-bold text-gray-900">Resume Examples</h2>
-              <p className="mt-4 text-lg text-gray-600 max-w-2xl mx-auto">
+              <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Resume Examples</h2>
+              <p className="mt-4 text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
                 See how our AI transforms resumes across different industries
               </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="bg-gray-50 p-6 rounded-lg border">
-                <h3 className="text-xl font-semibold mb-4">Software Engineer</h3>
+              <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-lg border border-gray-200 dark:border-gray-700">
+                <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Software Engineer</h3>
                 <div className="flex space-x-4">
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-500 mb-2">Before</p>
-                    <div className="bg-white p-4 rounded border h-64 overflow-y-auto text-sm">
-                      <p className="font-bold">John Smith</p>
-                      <p>Software Developer</p>
-                      <p>john.smith@email.com</p>
-                      <p className="mt-2 font-bold">Experience:</p>
-                      <p>Junior Developer, ABC Tech (2020-Present)</p>
-                      <ul className="list-disc pl-5">
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Before</p>
+                    <div className="bg-white dark:bg-gray-900 p-4 rounded border border-gray-200 dark:border-gray-700 h-64 overflow-y-auto text-sm">
+                      <p className="font-bold text-gray-900 dark:text-white">John Smith</p>
+                      <p className="text-gray-700 dark:text-gray-300">Software Developer</p>
+                      <p className="text-gray-700 dark:text-gray-300">john.smith@email.com</p>
+                      <p className="mt-2 font-bold text-gray-900 dark:text-white">Experience:</p>
+                      <p className="text-gray-700 dark:text-gray-300">Junior Developer, ABC Tech (2020-Present)</p>
+                      <ul className="list-disc pl-5 text-gray-700 dark:text-gray-300">
                         <li>Worked on web applications</li>
                         <li>Fixed bugs in the codebase</li>
                         <li>Helped with code reviews</li>
@@ -822,14 +822,14 @@ export default function ResumeEnhancer() {
                     </div>
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-500 mb-2">After</p>
-                    <div className="bg-white p-4 rounded border h-64 overflow-y-auto text-sm">
-                      <p className="font-bold">John Smith</p>
-                      <p>Full Stack Software Engineer</p>
-                      <p>john.smith@email.com | github.com/johnsmith</p>
-                      <p className="mt-2 font-bold">Professional Experience:</p>
-                      <p>Software Engineer, ABC Tech (2020-Present)</p>
-                      <ul className="list-disc pl-5">
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">After</p>
+                    <div className="bg-white dark:bg-gray-900 p-4 rounded border border-gray-200 dark:border-gray-700 h-64 overflow-y-auto text-sm">
+                      <p className="font-bold text-gray-900 dark:text-white">John Smith</p>
+                      <p className="text-gray-700 dark:text-gray-300">Full Stack Software Engineer</p>
+                      <p className="text-gray-700 dark:text-gray-300">john.smith@email.com | github.com/johnsmith</p>
+                      <p className="mt-2 font-bold text-gray-900 dark:text-white">Professional Experience:</p>
+                      <p className="text-gray-700 dark:text-gray-300">Software Engineer, ABC Tech (2020-Present)</p>
+                      <ul className="list-disc pl-5 text-gray-700 dark:text-gray-300">
                         <li>
                           Engineered responsive web applications using React.js, resulting in 30% improvement in user
                           engagement
@@ -842,18 +842,18 @@ export default function ResumeEnhancer() {
                 </div>
               </div>
 
-              <div className="bg-gray-50 p-6 rounded-lg border">
-                <h3 className="text-xl font-semibold mb-4">Marketing Specialist</h3>
+              <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-lg border border-gray-200 dark:border-gray-700">
+                <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Marketing Specialist</h3>
                 <div className="flex space-x-4">
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-500 mb-2">Before</p>
-                    <div className="bg-white p-4 rounded border h-64 overflow-y-auto text-sm">
-                      <p className="font-bold">Jane Doe</p>
-                      <p>Marketing Assistant</p>
-                      <p>jane.doe@email.com</p>
-                      <p className="mt-2 font-bold">Experience:</p>
-                      <p>Marketing Assistant, XYZ Company (2019-Present)</p>
-                      <ul className="list-disc pl-5">
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Before</p>
+                    <div className="bg-white dark:bg-gray-900 p-4 rounded border border-gray-200 dark:border-gray-700 h-64 overflow-y-auto text-sm">
+                      <p className="font-bold text-gray-900 dark:text-white">Jane Doe</p>
+                      <p className="text-gray-700 dark:text-gray-300">Marketing Assistant</p>
+                      <p className="text-gray-700 dark:text-gray-300">jane.doe@email.com</p>
+                      <p className="mt-2 font-bold text-gray-900 dark:text-white">Experience:</p>
+                      <p className="text-gray-700 dark:text-gray-300">Marketing Assistant, XYZ Company (2019-Present)</p>
+                      <ul className="list-disc pl-5 text-gray-700 dark:text-gray-300">
                         <li>Helped with social media posts</li>
                         <li>Worked on email campaigns</li>
                         <li>Assisted with event planning</li>
@@ -861,14 +861,14 @@ export default function ResumeEnhancer() {
                     </div>
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-500 mb-2">After</p>
-                    <div className="bg-white p-4 rounded border h-64 overflow-y-auto text-sm">
-                      <p className="font-bold">Jane Doe</p>
-                      <p>Digital Marketing Specialist</p>
-                      <p>jane.doe@email.com | linkedin.com/in/janedoe</p>
-                      <p className="mt-2 font-bold">Professional Experience:</p>
-                      <p>Digital Marketing Specialist, XYZ Company (2019-Present)</p>
-                      <ul className="list-disc pl-5">
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">After</p>
+                    <div className="bg-white dark:bg-gray-900 p-4 rounded border border-gray-200 dark:border-gray-700 h-64 overflow-y-auto text-sm">
+                      <p className="font-bold text-gray-900 dark:text-white">Jane Doe</p>
+                      <p className="text-gray-700 dark:text-gray-300">Digital Marketing Specialist</p>
+                      <p className="text-gray-700 dark:text-gray-300">jane.doe@email.com | linkedin.com/in/janedoe</p>
+                      <p className="mt-2 font-bold text-gray-900 dark:text-white">Professional Experience:</p>
+                      <p className="text-gray-700 dark:text-gray-300">Digital Marketing Specialist, XYZ Company (2019-Present)</p>
+                      <ul className="list-disc pl-5 text-gray-700 dark:text-gray-300">
                         <li>
                           Developed and executed social media strategies that increased follower engagement by 45%
                         </li>
