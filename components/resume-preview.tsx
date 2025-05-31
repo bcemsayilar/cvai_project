@@ -150,6 +150,7 @@ export const ResumePreview = memo(function ResumePreview({
   const [activeTab, setActiveTab] = useState("preview")
   const [atsScoreOriginal, setAtsScoreOriginal] = useState<ATSScore | null>(propAtsScoreOriginal || null)
   const [atsScoreEnhanced, setAtsScoreEnhanced] = useState<ATSScore | null>(propAtsScoreEnhanced || null)
+  const [isLatexFormat, setIsLatexFormat] = useState<boolean>(false)
   const { toast } = useToast()
   
   // Create supabase client with useRef to prevent recreation on every render
@@ -234,6 +235,13 @@ export const ResumePreview = memo(function ResumePreview({
           setAtsScoreEnhanced(resume.ats_score_enhanced as ATSScore);
         }
 
+        // Detect if the processed file is LaTeX format
+        if (processedPath && processedPath.endsWith('.tex')) {
+          setIsLatexFormat(true);
+        } else {
+          setIsLatexFormat(false);
+        }
+
         if (originalPath) {
           const { data: originalData, error: originalError } = await supabase.storage
             .from("resumes")
@@ -287,6 +295,96 @@ export const ResumePreview = memo(function ResumePreview({
     }
   };
 
+  const downloadLatexFile = async () => {
+    if (!processedPath || !processedPath.endsWith('.tex')) {
+      toast({
+        title: "LaTeX file not available",
+        description: "This resume was not processed in LaTeX format.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase.storage
+        .from("resumes")
+        .download(processedPath);
+
+      if (error) {
+        throw error;
+      }
+
+      const url = URL.createObjectURL(data);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "enhanced_resume.tex";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "LaTeX file downloaded",
+        description: "Your enhanced resume has been downloaded as a LaTeX file.",
+      });
+    } catch (error) {
+      console.error("Error downloading LaTeX file:", error);
+      toast({
+        title: "Download failed",
+        description: "Could not download the LaTeX file.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const downloadEnhancedTxtFile = async () => {
+    if (!processedPath) {
+      toast({
+        title: "Enhanced resume not available",
+        description: "No enhanced resume file found.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // For LaTeX format, look for the companion .txt file
+    let txtPath = processedPath;
+    if (processedPath.endsWith('.tex')) {
+      txtPath = processedPath.replace('.tex', '.txt');
+    }
+
+    try {
+      const { data, error } = await supabase.storage
+        .from("resumes")
+        .download(txtPath);
+
+      if (error) {
+        throw error;
+      }
+
+      const url = URL.createObjectURL(data);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "enhanced_resume.txt";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "Enhanced text file downloaded",
+        description: "Your enhanced resume has been downloaded as a text file.",
+      });
+    } catch (error) {
+      console.error("Error downloading enhanced text file:", error);
+      toast({
+        title: "Download failed",
+        description: "Could not download the enhanced text file.",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Memoize the PDF document to prevent unnecessary re-renders
   const pdfDocument = useMemo(() => {
     if (!resumePreviewData?.content) return null;
@@ -307,6 +405,44 @@ export const ResumePreview = memo(function ResumePreview({
   }, []);
 
   const renderResumePreview = () => {
+     // For LaTeX format, show a message instead of visual preview
+     if (isLatexFormat) {
+       return (
+         <div className="flex items-center justify-center h-full min-h-[400px] p-8">
+           <div className="text-center space-y-4 max-w-md">
+             <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto">
+               <FileText className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+             </div>
+             <h3 className="text-lg font-medium text-gray-900 dark:text-white">ATS Optimized Format</h3>
+             <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed">
+               This resume has been optimized in LaTeX format for maximum ATS compatibility. 
+               Download the LaTeX file to compile it into a PDF or use the enhanced text version for quick viewing.
+             </p>
+             <div className="flex flex-col sm:flex-row gap-2 justify-center pt-2">
+               <Button
+                 onClick={downloadLatexFile}
+                 variant="default"
+                 size="sm"
+                 className="flex items-center space-x-2"
+               >
+                 <Download size={16} />
+                 <span>Download LaTeX</span>
+               </Button>
+               <Button
+                 onClick={downloadEnhancedTxtFile}
+                 variant="outline"
+                 size="sm"
+                 className="flex items-center space-x-2"
+               >
+                 <FileText size={16} />
+                 <span>Download Text</span>
+               </Button>
+             </div>
+           </div>
+         </div>
+       );
+     }
+
      if (!resumePreviewData || !resumePreviewData.content) {
         return <p>No preview data available.</p>;
      }
@@ -343,6 +479,34 @@ export const ResumePreview = memo(function ResumePreview({
   }
 
   const renderJsonView = () => {
+    // For LaTeX format, show a different message
+    if (isLatexFormat) {
+      return (
+        <div className="p-4 bg-gray-100 dark:bg-gray-800 rounded-md text-gray-600 dark:text-gray-400 text-sm">
+          <div className="space-y-4">
+            <div className="flex items-center space-x-2 text-blue-600 dark:text-blue-400">
+              <FileText size={16} />
+              <span className="font-medium">LaTeX Format Resume</span>
+            </div>
+            <p>
+              This resume has been processed in LaTeX format for optimal ATS compatibility. 
+              The structured data is compiled into LaTeX markup rather than JSON format.
+            </p>
+            <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded border border-blue-200 dark:border-blue-800">
+              <p className="text-xs font-mono">
+                <strong>File:</strong> {processedPath?.split('/').pop()}<br/>
+                <strong>Format:</strong> LaTeX (.tex)<br/>
+                <strong>Optimized for:</strong> Applicant Tracking Systems (ATS)
+              </p>
+            </div>
+            <p className="text-xs">
+              Download the LaTeX file to view the source code or compile it into a PDF.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
     return resumePreviewData ? (
       <div className="p-4 bg-gray-100 dark:bg-gray-800 rounded-md whitespace-pre-wrap text-gray-800 dark:text-gray-200 font-mono text-sm">
         {JSON.stringify(resumePreviewData, null, 2)}
@@ -404,9 +568,8 @@ export const ResumePreview = memo(function ResumePreview({
                <Moon size={18} className="text-gray-500 dark:text-gray-400"/>
             </div>
 
-          {/* Download PDF Button (using react-pdf/renderer) */}
-          {/* Only show if resumePreviewData exists and has content */}
-          {pdfDocument && (
+          {/* Download PDF Button (using react-pdf/renderer) - Only for visual format */}
+          {pdfDocument && !isLatexFormat && (
              <PDFDownloadLink
                 document={pdfDocument}
                 fileName={downloadFileName}
@@ -428,6 +591,29 @@ export const ResumePreview = memo(function ResumePreview({
              </PDFDownloadLink>
           )}
 
+          {/* Download LaTeX Button - Only for ATS format */}
+          {isLatexFormat && (
+            <Button
+              className="flex items-center space-x-2"
+              onClick={downloadLatexFile}
+              variant="default"
+            >
+              <Download size={18} />
+              <span>Download LaTeX</span>
+            </Button>
+          )}
+
+          {/* Download Enhanced Text Button - Available for both formats */}
+          {processedPath && (
+            <Button
+              className="flex items-center space-x-2 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+              onClick={downloadEnhancedTxtFile}
+              variant="outline"
+            >
+              <FileText size={18} />
+              <span>Download Enhanced Text</span>
+            </Button>
+          )}
 
           {/* Download Original Text Button */}
            {originalResume && (
@@ -437,7 +623,7 @@ export const ResumePreview = memo(function ResumePreview({
                 variant="outline"
              >
                 <FileText size={18} />
-                <span>Download Text</span>
+                <span>Download Original Text</span>
               </Button>
             )}
 

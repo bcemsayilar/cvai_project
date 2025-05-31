@@ -192,7 +192,7 @@ serve(async (req)=>{
     }
     console.log("User authenticated:", user.id);
     // Parse request body
-    const { resumeId, filePath, enhancementStyles, customInstructions, extractOnly } = await req.json();
+    const { resumeId, filePath, enhancementStyles, customInstructions, extractOnly, resumeFormat } = await req.json();
     if (!resumeId) {
       return new Response(JSON.stringify({
         error: "Resume ID is required"
@@ -422,6 +422,255 @@ serve(async (req)=>{
     if (enhancementStyles?.includes("styleOnly")) {
       styleProperties += "- Focus only on design, preserve the original text content exactly\n";
     }
+    
+    // Handle different resume formats
+    if (resumeFormat === "ats") {
+      // Process ATS-optimized LaTeX format
+      console.log("Processing ATS format - generating LaTeX resume");
+      
+      const atsSystemPrompt = `
+You are an expert ATS-optimized resume writer. Analyze the provided resume and generate a structured JSON object optimized for Applicant Tracking Systems with the following structure:
+
+{
+    "name": "Full Name",
+    "title": "Professional Title/Objective",
+    "location": "City, State",
+    "contacts": [
+        { "type": "email", "value": "email@example.com" },
+        { "type": "phone", "value": "+1-xxx-xxx-xxxx" },
+        { "type": "linkedin", "value": "linkedin.com/in/username" },
+        { "type": "github", "value": "github.com/username" }
+    ],
+    "education": [
+        {
+            "degree": "Degree Name",
+            "institution": "Institution Name", 
+            "location": "City, State",
+            "dates": "Start Date - End Date",
+            "details": ["Relevant coursework", "Honors", "GPA if >3.5"]
+        }
+    ],
+    "experience": [
+        {
+            "position": "Job Title",
+            "company": "Company Name",
+            "location": "City, State", 
+            "dates": "Start Date - End Date",
+            "highlights": [
+                "Quantified achievement with metrics (increased X by Y%)",
+                "Action verb + specific accomplishment + impact",
+                "Technical skills demonstrated in context"
+            ]
+        }
+    ],
+    "skills": ["Technical Skill 1", "Technical Skill 2", "Relevant Keyword"],
+    "featured_project": [
+        {
+            "name": "Project Name",
+            "description": "Brief description focusing on technical implementation and results",
+            "technologies": ["Tech1", "Tech2", "Tech3"]
+        }
+    ]
+}
+
+ATS Optimization Guidelines:
+- Use standard section headings (Experience, Education, Skills)
+- Include relevant industry keywords naturally
+- Quantify achievements with specific metrics and percentages
+- Use action verbs (Developed, Implemented, Managed, Led, etc.)
+- Avoid graphics, tables, or complex formatting
+- Ensure all text is machine-readable
+- Include technical skills and relevant keywords for the field
+- Structure content for easy parsing by ATS systems
+- Keep formatting clean and simple
+- Focus on results and impact over responsibilities
+
+${styleProperties}
+${customInstructions ? `\nAdditional instructions: ${customInstructions}` : ""}
+
+Only output a valid JSON object, nothing else.`;
+
+      try {
+        console.log("Calling Groq API for ATS format");
+        const atsCompletion = await groq.chat.completions.create({
+          messages: [
+            {
+              role: "system", 
+              content: atsSystemPrompt
+            },
+            {
+              role: "user",
+              content: `Analyze and optimize this resume for ATS compatibility:\n\n${resumeText}`
+            }
+          ],
+          model: "llama-3.1-8b-instant",
+          temperature: 0.5,
+          max_tokens: 3000,
+          response_format: { type: "json_object" }
+        });
+
+        const atsResponseText = atsCompletion.choices[0]?.message?.content || "";
+        if (!atsResponseText) {
+          throw new Error("Empty response from Groq API for ATS format");
+        }
+
+        // Parse the ATS JSON response
+        let atsResumeData;
+        try {
+          const jsonMatch = atsResponseText.match(/\{[\s\S]*\}/);
+          if (!jsonMatch) {
+            throw new Error("No valid JSON object found in ATS response");
+          }
+          atsResumeData = JSON.parse(jsonMatch[0]);
+          console.log("Successfully parsed ATS JSON response");
+        } catch (parseError) {
+          console.error("Error parsing ATS JSON response:", parseError);
+          throw new Error("Failed to parse ATS response as JSON: " + parseError.message);
+        }
+
+        // Generate LaTeX content using the latex-generator
+        const { generateATSLatexResume } = await import("../../lib/latex-generator.ts");
+        const latexContent = generateATSLatexResume(atsResumeData);
+        
+        // Create processed file path for LaTeX
+        const latexFileName = `processed/${user.id}/${resumeId}.tex`;
+        
+        // Upload LaTeX file
+        console.log("Uploading LaTeX resume to:", latexFileName);
+        const { error: latexUploadError } = await supabaseClient.storage
+          .from("resumes")
+          .upload(latexFileName, new Blob([latexContent], { type: "text/plain" }), {
+            contentType: "text/plain",
+            upsert: true
+          });
+
+        if (latexUploadError) {
+          console.error("Error uploading LaTeX file:", latexUploadError);
+          throw new Error("Failed to save LaTeX resume");
+        }
+
+        // Also create a text version for ATS analysis
+        const textSections = [];
+        textSections.push(atsResumeData.name?.toUpperCase() || "");
+        textSections.push(atsResumeData.title || "");
+        
+        // Add contact info
+        if (atsResumeData.contacts && atsResumeData.contacts.length > 0) {
+          const contactInfo = atsResumeData.contacts.map(c => c.value).join(" | ");
+          textSections.push(contactInfo);
+        }
+
+        // Add education
+        if (atsResumeData.education && atsResumeData.education.length > 0) {
+          textSections.push("\nEDUCATION");
+          atsResumeData.education.forEach(edu => {
+            textSections.push(`${edu.degree}, ${edu.institution} (${edu.dates})`);
+            if (edu.details && edu.details.length > 0) {
+              edu.details.forEach(detail => textSections.push(`• ${detail}`));
+            }
+          });
+        }
+
+        // Add experience  
+        if (atsResumeData.experience && atsResumeData.experience.length > 0) {
+          textSections.push("\nEXPERIENCE");
+          atsResumeData.experience.forEach(exp => {
+            textSections.push(`${exp.position}, ${exp.company} (${exp.dates})`);
+            if (exp.highlights && exp.highlights.length > 0) {
+              exp.highlights.forEach(highlight => textSections.push(`• ${highlight}`));
+            }
+          });
+        }
+
+        // Add skills
+        if (atsResumeData.skills && atsResumeData.skills.length > 0) {
+          textSections.push("\nSKILLS");
+          textSections.push(atsResumeData.skills.join(", "));
+        }
+
+        // Add projects
+        if (atsResumeData.featured_project && atsResumeData.featured_project.length > 0) {
+          textSections.push("\nPROJECTS");
+          atsResumeData.featured_project.forEach(proj => {
+            textSections.push(`${proj.name}: ${proj.description}`);
+            if (proj.technologies && proj.technologies.length > 0) {
+              textSections.push(`Technologies: ${proj.technologies.join(", ")}`);
+            }
+          });
+        }
+
+        const atsTextContent = textSections.join("\n");
+        
+        // Upload text version for ATS analysis
+        const textFileName = `processed/${user.id}/${resumeId}.txt`;
+        const { error: textUploadError } = await supabaseClient.storage
+          .from("resumes")
+          .upload(textFileName, new Blob([atsTextContent], { type: "text/plain" }), {
+            contentType: "text/plain",
+            upsert: true
+          });
+
+        if (textUploadError) {
+          console.error("Error uploading text file:", textUploadError);
+          throw new Error("Failed to save text resume");
+        }
+
+        // Analyze enhanced ATS score
+        console.log("Analyzing enhanced ATS score for LaTeX resume...");
+        let enhancedATSScore;
+        try {
+          enhancedATSScore = await callATSAnalyzer(atsTextContent, supabaseClient);
+          console.log("Enhanced ATS score:", enhancedATSScore.overallScore);
+          console.log("ATS score improvement:", enhancedATSScore.overallScore - originalATSScore.overallScore);
+        } catch (error) {
+          console.error("Failed to analyze enhanced ATS score:", error);
+          enhancedATSScore = {
+            keywordMatch: originalATSScore.keywordMatch,
+            formatScore: Math.min(95, originalATSScore.formatScore + 10), // LaTeX should have good format score
+            contentQuality: originalATSScore.contentQuality,
+            readabilityScore: originalATSScore.readabilityScore,
+            structureScore: Math.min(95, originalATSScore.structureScore + 10), // LaTeX should have good structure
+            overallScore: originalATSScore.overallScore,
+            recommendations: ["Enhanced ATS analysis failed - using original scores with LaTeX improvements"]
+          };
+        }
+
+        // Update database with LaTeX file path and ATS scores
+        const { error: updateError } = await supabaseClient
+          .from("resumes")
+          .update({
+            status: "completed",
+            processed_file_path: latexFileName, // Store LaTeX file path
+            ats_score_original: originalATSScore,
+            ats_score_enhanced: enhancedATSScore,
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", resumeId);
+
+        if (updateError) {
+          console.error("Error updating resume record:", updateError);
+          throw new Error("Failed to update resume status");
+        }
+
+        console.log("ATS LaTeX resume processing completed successfully");
+        return new Response(JSON.stringify({ success: true }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+
+      } catch (error) {
+        console.error("Error processing ATS format:", error);
+        await supabaseClient.from("resumes").update({ status: "failed" }).eq("id", resumeId);
+        return new Response(JSON.stringify({
+          error: `ATS processing failed: ${error.message}`
+        }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+    }
+    
+    // Continue with visual format processing (existing logic)
     // Construct the system prompt for structured JSON output
     const systemPrompt = `
 You are an expert resume enhancer and designer. Analyze the provided resume and generate a JSON object with the following structure:

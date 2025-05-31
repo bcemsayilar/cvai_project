@@ -50,6 +50,7 @@ export default function ResumeEnhancer() {
     grammarFix: true,
     styleOnly: false,
   })
+  const [resumeFormat, setResumeFormat] = useState<"visual" | "ats">("visual")
   const [isDownloading, setIsDownloading] = useState<boolean>(false)
   const [downloadFormat, setDownloadFormat] = useState<"txt" | null>(null)
   const [atsScoreOriginal, setAtsScoreOriginal] = useState<ATSScore | null>(null)
@@ -279,6 +280,7 @@ export default function ResumeEnhancer() {
           resumeId,
           enhancementStyles,
           customInstructions: debouncedCustomInstructions.trim() || null,
+          resumeFormat,
         },
       })
 
@@ -496,10 +498,68 @@ export default function ResumeEnhancer() {
                   <FileUploader onFileUpload={handleFileUpload} file={file} />
                 </div>
 
+                {/* Resume Format Selection */}
+                {file && (
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-3">2. Choose Resume Format</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                      <div 
+                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                          resumeFormat === "visual" 
+                            ? "border-teal-500 bg-teal-50 dark:bg-teal-900/20 dark:border-teal-400" 
+                            : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+                        }`}
+                        onClick={() => setResumeFormat("visual")}
+                      >
+                        <div className="flex items-center space-x-3">
+                          <div className={`w-4 h-4 rounded-full border-2 ${
+                            resumeFormat === "visual" 
+                              ? "border-teal-500 bg-teal-500" 
+                              : "border-gray-300 dark:border-gray-600"
+                          }`}>
+                            {resumeFormat === "visual" && (
+                              <div className="w-2 h-2 bg-white rounded-full mx-auto mt-0.5"></div>
+                            )}
+                          </div>
+                          <div>
+                            <h4 className="font-medium text-gray-900 dark:text-white">Visual Design</h4>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">Beautiful, modern layout for presentations</p>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div 
+                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                          resumeFormat === "ats" 
+                            ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-400" 
+                            : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+                        }`}
+                        onClick={() => setResumeFormat("ats")}
+                      >
+                        <div className="flex items-center space-x-3">
+                          <div className={`w-4 h-4 rounded-full border-2 ${
+                            resumeFormat === "ats" 
+                              ? "border-blue-500 bg-blue-500" 
+                              : "border-gray-300 dark:border-gray-600"
+                          }`}>
+                            {resumeFormat === "ats" && (
+                              <div className="w-2 h-2 bg-white rounded-full mx-auto mt-0.5"></div>
+                            )}
+                          </div>
+                          <div>
+                            <h4 className="font-medium text-gray-900 dark:text-white">ATS Optimized</h4>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">Clean LaTeX format for applicant tracking systems</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Style Selection */}
                 {file && (
                   <div>
-                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-3">2. Select Enhancement Style</h3>
+                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-3">3. Select Enhancement Style</h3>
                     <div className="flex flex-wrap gap-3 mb-6">
                       <Toggle
                         pressed={selectedStyles.professional}
