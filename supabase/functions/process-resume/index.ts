@@ -205,6 +205,8 @@ serve(async (req)=>{
       });
     }
     console.log("Processing resume:", resumeId, "with styles:", enhancementStyles);
+    console.log("Resume format received:", resumeFormat);
+    
     // Get user profile
     const { data: profile, error: profileError } = await supabaseClient.from("profiles").select("*").eq("id", user.id).single();
     if (profileError || !profile) {
@@ -255,9 +257,15 @@ serve(async (req)=>{
     const { data: fileData, error: fileError } = await supabaseClient.storage.from("resumes").download(resume.original_file_path);
     if (fileError || !fileData) {
       console.error("File download error:", fileError);
-      await supabaseClient.from("resumes").update({
-        status: "failed"
-      }).eq("id", resumeId);
+await supabaseClient.from("resumes").update({
+  // Add the fields you want to update here, for example:
+  status: "failed"
+}).eq("id", resumeId);
+
+await supabaseClient.from("profiles").update({
+  resumes_used: profile.resumes_used + 1,
+  updated_at: new Date().toISOString()
+}).eq("id", user.id);
       return new Response(JSON.stringify({
         error: "Failed to download resume file"
       }), {
@@ -424,6 +432,7 @@ serve(async (req)=>{
     }
     
     // Handle different resume formats
+    console.log("Checking resume format:", resumeFormat, "Type:", typeof resumeFormat);
     if (resumeFormat === "ats") {
       // Process ATS-optimized LaTeX format
       console.log("Processing ATS format - generating LaTeX resume");
@@ -488,7 +497,28 @@ ATS Optimization Guidelines:
 ${styleProperties}
 ${customInstructions ? `\nAdditional instructions: ${customInstructions}` : ""}
 
-Only output a valid JSON object, nothing else.`;
+CRITICAL REQUIREMENTS - FOLLOW EXACTLY:
+1. Output ONLY valid JSON - NO COMMENTS ALLOWED
+2. NEVER use // comments anywhere in the JSON
+3. NEVER use /* comments */ anywhere in the JSON
+4. NEVER add explanatory text outside the JSON
+5. For incomplete/missing data, use "Not provided" or empty strings - NEVER add comments
+6. The JSON must be parseable by JSON.parse() without errors
+7. Double-check that NO COMMENTS exist in your output before submitting
+8. If a field is incomplete or unclear, use placeholder text like "Not provided" instead of comments
+9. ABSOLUTELY NO COMMENT SYNTAX (// or /* */) anywhere in the response
+10. Test your JSON mentally with JSON.parse() before responding
+
+WRONG EXAMPLES - NEVER DO THIS:
+"linkedin": "linkedin.com/in/incomplete" // LinkedIn link is incomplete
+"github": "github.com/user" /* incomplete URL */
+
+CORRECT EXAMPLES - DO THIS INSTEAD:
+"linkedin": "linkedin.com/in/not-provided"
+"github": "Not provided"
+
+For missing information, use empty strings ("") for text fields or empty arrays ([]) for array fields.
+Output ONLY the raw JSON object that can be parsed directly with JSON.parse().`;
 
       try {
         console.log("Calling Groq API for ATS format");
@@ -521,15 +551,54 @@ Only output a valid JSON object, nothing else.`;
           if (!jsonMatch) {
             throw new Error("No valid JSON object found in ATS response");
           }
-          atsResumeData = JSON.parse(jsonMatch[0]);
+          
+          // Enhanced JSON cleaning to remove any comments and invalid syntax
+          let cleanJson = jsonMatch[0]
+            // Remove single-line comments (// anything)
+            .replace(/\/\/.*$/gm, '')
+            // Remove multi-line comments (/* anything */)
+            .replace(/\/\*[\s\S]*?\*\//g, '')
+            // Remove any trailing commas before closing brackets/braces
+            .replace(/,(\s*[}\]])/g, '$1')
+            // Remove any lines that look like comments but without //
+            .replace(/^\s*[^"{\[\s].*$/gm, '')
+            // Clean up any extra whitespace and newlines
+            .replace(/\n\s*\n/g, '\n')
+            .trim();
+            
+          console.log("Cleaned JSON preview:", cleanJson.substring(0, 200) + "...");
+          
+          // Additional fallback: try to fix common patterns that cause JSON parsing errors
+          try {
+            atsResumeData = JSON.parse(cleanJson);
+          } catch (firstAttemptError) {
+            console.log("First parse attempt failed, trying additional cleaning...");
+            
+            // Try more aggressive cleaning for specific patterns
+            cleanJson = cleanJson
+              // Remove lines that contain "// " even if they're within strings incorrectly
+              .replace(/.*\/\/.*\n/g, '')
+              // Fix broken string values that might have comments
+              .replace(/"([^"]*?)\/\/[^"]*"/g, '"$1"')
+              // Remove any remaining comment-like patterns
+              .replace(/\s*\/\/[^\n]*\n/g, '\n')
+              // Clean up malformed JSON structures
+              .replace(/,\s*}/g, '}')
+              .replace(/,\s*]/g, ']');
+              
+            atsResumeData = JSON.parse(cleanJson);
+          }
+          
           console.log("Successfully parsed ATS JSON response");
         } catch (parseError) {
           console.error("Error parsing ATS JSON response:", parseError);
+          console.error("Raw response text:", atsResponseText);
+          console.error("Attempted clean JSON:", cleanJson?.substring(0, 500));
           throw new Error("Failed to parse ATS response as JSON: " + parseError.message);
         }
 
-        // Generate LaTeX content using the latex-generator
-        const { generateATSLatexResume } = await import("../../lib/latex-generator.ts");
+        // Generate LaTeX content using the shared latex-generator
+        const { generateATSLatexResume } = await import("./latex-generator-edge.ts");
         const latexContent = generateATSLatexResume(atsResumeData);
         
         // Create processed file path for LaTeX
@@ -731,8 +800,11 @@ Guidelines:
 - Use the above structure exactly, even if some fields are empty.
 - For contacts, use an array of objects with 'type' and 'value'.
 - Do not fabricate information; only extract what is present in the resume.
-- Only output a valid JSON object, nothing else.
-- Do NOT include any comments or explanations.
+- For missing information, use empty strings ("") for text fields or empty arrays ([]) for array fields.
+- NEVER include JavaScript-style comments (// text) in the JSON output.
+- NEVER include explanatory text, markdown formatting, or code blocks.
+- NEVER use placeholder comments like "// Replace with actual..." in any part of the JSON.
+- Output ONLY the raw JSON object that can be parsed directly with JSON.parse().
 - **CRITICAL:** Always include the "design" object with "layout.columns" set to 2.
 ${styleProperties}
 ${customInstructions ? `\nAdditional instructions: ${customInstructions}` : ""}

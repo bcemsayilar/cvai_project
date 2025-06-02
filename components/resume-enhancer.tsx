@@ -273,6 +273,7 @@ export default function ResumeEnhancer() {
 
     try {
       console.log("Calling process-resume function with styles:", enhancementStyles)
+      console.log("Resume format selected:", resumeFormat)
 
       // Call the Supabase Edge Function to process the resume
       const { data, error } = await supabase.functions.invoke("process-resume", {
@@ -676,19 +677,19 @@ export default function ResumeEnhancer() {
 
         {/* Processing & Preview Section */}
         {isProcessing && (
-          <section className="py-16 px-4 sm:px-6 lg:px-8 bg-white">
+          <section className="py-16 px-4 sm:px-6 lg:px-8 bg-white dark:bg-gray-900">
             <div className="max-w-4xl mx-auto text-center">
               <div className="flex flex-col items-center justify-center space-y-4">
                 <div className="relative w-24 h-24">
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <Loader2 className="h-16 w-16 text-teal-600 animate-spin" />
+                    <Loader2 className="h-16 w-16 text-teal-600 dark:text-teal-400 animate-spin" />
                   </div>
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <FileText className="h-8 w-8 text-teal-600" />
+                    <FileText className="h-8 w-8 text-teal-600 dark:text-teal-400" />
                   </div>
                 </div>
-                <h2 className="text-2xl font-bold text-gray-900">Analyzing and enhancing your resume...</h2>
-                <p className="text-gray-500 max-w-md">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Analyzing and enhancing your resume...</h2>
+                <p className="text-gray-500 dark:text-gray-400 max-w-md">
                   Our AI is analyzing your resume to enhance the content and create a custom design based on your
                   selected preferences.
                 </p>
@@ -705,14 +706,14 @@ export default function ResumeEnhancer() {
 
         {/* ATS Analysis Results (standalone) */}
         {!isComplete && atsScoreOriginal && !isProcessing && (
-          <section className="py-16 px-4 sm:px-6 lg:px-8 bg-white">
+          <section className="py-16 px-4 sm:px-6 lg:px-8 bg-white dark:bg-gray-900">
             <div className="max-w-5xl mx-auto">
               <div className="text-center mb-10">
-                <div className="inline-flex items-center justify-center p-2 bg-blue-100 rounded-full mb-4">
-                  <FileText className="h-8 w-8 text-blue-600" />
+                <div className="inline-flex items-center justify-center p-2 bg-blue-100 dark:bg-blue-900/30 rounded-full mb-4">
+                  <FileText className="h-8 w-8 text-blue-600 dark:text-blue-400" />
                 </div>
-                <h2 className="text-2xl font-bold text-gray-900">ATS Analysis Complete!</h2>
-                <p className="text-gray-500 mt-2">Here's how your resume performs with Applicant Tracking Systems.</p>
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">ATS Analysis Complete!</h2>
+                <p className="text-gray-500 dark:text-gray-400 mt-2">Here's how your resume performs with Applicant Tracking Systems.</p>
               </div>
 
               {/* ATS Score Display */}

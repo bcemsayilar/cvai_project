@@ -32,6 +32,58 @@ interface ResumeData {
   }>;
 }
 
+// New utility function to convert LaTeX data structure to React PDF format
+export function convertLatexDataToReactPdf(latexData: ResumeData): any {
+  return {
+    content: {
+      name: latexData.name,
+      title: latexData.title,
+      contact: {
+        location: latexData.location,
+        // Convert contacts array to individual fields
+        ...latexData.contacts.reduce((acc, contact) => {
+          switch (contact.type.toLowerCase()) {
+            case 'email':
+              acc.email = contact.value;
+              break;
+            case 'phone':
+              acc.phone = contact.value;
+              break;
+            case 'linkedin':
+              acc.linkedin = contact.value;
+              break;
+          }
+          return acc;
+        }, {} as any)
+      },
+      experience: latexData.experience || [],
+      education: latexData.education || [],
+      skills: latexData.skills || [],
+      featured_project: latexData.featured_project || []
+    },
+    design: {
+      // ATS-optimized design with minimal styling
+      typography: {
+        fontFamily: 'Noto Sans',
+        fontSize: 10,
+        headingFontSize: 14,
+        lineHeight: 1.3
+      },
+      layout: {
+        columns: 1, // Single column for ATS compatibility
+        padding: 30,
+        margin: 0
+      },
+      colors: {
+        accent: '#000000', // Black for maximum compatibility
+        background: '#ffffff',
+        textPrimary: '#000000',
+        textSecondary: '#333333'
+      }
+    }
+  };
+}
+
 export function generateATSLatexResume(data: ResumeData): string {
   const {
     name,
@@ -46,7 +98,7 @@ export function generateATSLatexResume(data: ResumeData): string {
 
   // Build contact information line
   const contactInfo = contacts
-    .map(contact => contact.value)
+    .map(contact => escapeLaTeX(contact.value))
     .join(' $\\cdot$ ');
 
   // Generate LaTeX content
@@ -120,7 +172,7 @@ export function generateATSLatexResume(data: ResumeData): string {
 %==== Profile ====%
 \\vspace*{-10pt}
 \\begin{center}
-\t{\\Huge \\scshape {${escapeLaTeX(name)}}}\\\\
+{\\Huge \\scshape ${escapeLaTeX(name)}}\\\\
 \t${location ? escapeLaTeX(location) + ' $\\cdot$ ' : ''}${contactInfo}\\\\
 \\end{center}
 
@@ -179,7 +231,7 @@ function generateProjectSection(proj: { name: string; description: string; techn
   const { name, description, technologies } = proj;
   
   return `\\textbf{${escapeLaTeX(name)}}\\\\
-${escapeLaTeX(description)}${technologies && technologies.length > 0 ? ` (${technologies.join(', ')})` : ''}\\\\`;
+${escapeLaTeX(description)}${technologies && technologies.length > 0 ? ` (${technologies.map(escapeLaTeX).join(', ')})` : ''}\\\\`;
 }
 
 function escapeLaTeX(text: string): string {
@@ -199,3 +251,154 @@ function escapeLaTeX(text: string): string {
 }
 
 export type { ResumeData };
+
+// Function to extract structured data from LaTeX content
+export function extractDataFromLatex(latexContent: string): any {
+  try {
+    // Extract name from LaTeX content
+    const nameMatch = latexContent.match(/\\scshape\s*\{([^}]+)\}/);
+    const name = nameMatch ? nameMatch[1].trim() : 'Resume';
+
+    // Extract contact information
+    const contactMatches = latexContent.match(/\{\\Huge[^}]+\}\\\\([^\\]+)\\\\/);
+    const contactInfo = contactMatches ? contactMatches[1].trim() : '';
+    
+    // Parse contact information
+    const contacts: Array<{type: string; value: string}> = [];
+    if (contactInfo) {
+      const parts = contactInfo.split('$\\cdot$').map(part => part.trim());
+      parts.forEach(part => {
+        if (part.includes('@')) {
+          contacts.push({type: 'email', value: part});
+        } else if (part.match(/^\+?\d/)) {
+          contacts.push({type: 'phone', value: part});
+        } else if (part.includes('linkedin') || part.includes('www.')) {
+          contacts.push({type: 'linkedin', value: part});
+        }
+      });
+    }
+
+    // Extract location separately
+    let location = '';
+    if (contactInfo) {
+      const parts = contactInfo.split('$\\cdot$').map(part => part.trim());
+      const locationPart = parts.find(part => 
+        !part.includes('@') && 
+        !part.match(/^\+?\d/) && 
+        !part.includes('linkedin') && 
+        !part.includes('www.')
+      );
+      if (locationPart) location = locationPart;
+    }
+
+    // Extract profile/title
+    const profileMatch = latexContent.match(/\\header\{Profile\}([^\\]+)/);
+    const title = profileMatch ? profileMatch[1].trim() : '';
+
+    // Extract experience section
+    const experience: any[] = [];
+    const expMatches = latexContent.match(/\\header\{Experience\}([^\\]+(?:\\textbf\{[^}]+\}[^\\]*)*)/);
+    if (expMatches) {
+      const expContent = expMatches[1];
+      const jobMatches = expContent.match(/\\textbf\{([^}]+)\}[^\\]*\\\\[^\\]*\\textit\{([^}]+)\}[^\\]*\\\\([^\\]*(?:\\item[^\\]*)*)/g);
+      
+      if (jobMatches) {
+        jobMatches.forEach(job => {
+          const companyMatch = job.match(/\\textbf\{([^}]+)\}/);
+          const positionMatch = job.match(/\\textit\{([^}]+)\}/);
+          const company = companyMatch ? companyMatch[1] : '';
+          const position = positionMatch ? positionMatch[1] : '';
+          
+          // Extract highlights
+          const highlights: string[] = [];
+          const itemMatches = job.match(/\\item\s*([^\\]+)/g);
+          if (itemMatches) {
+            itemMatches.forEach(item => {
+              const highlight = item.replace(/\\item\s*/, '').trim();
+              if (highlight) highlights.push(highlight);
+            });
+          }
+          
+          if (company && position) {
+            experience.push({
+              company,
+              position,
+              dates: '', // LaTeX format doesn't always have clear date extraction
+              highlights
+            });
+          }
+        });
+      }
+    }
+
+    // Extract education section
+    const education: any[] = [];
+    const eduMatches = latexContent.match(/\\header\{Education\}([^\\]+(?:\\textbf\{[^}]+\}[^\\]*)*)/);
+    if (eduMatches) {
+      const eduContent = eduMatches[1];
+      const schoolMatches = eduContent.match(/\\textbf\{([^}]+)\}[^\\]*\\\\([^\\]*)/g);
+      
+      if (schoolMatches) {
+        schoolMatches.forEach(school => {
+          const institutionMatch = school.match(/\\textbf\{([^}]+)\}/);
+          const degreeMatch = school.match(/\\\\([^\\]+)/);
+          const institution = institutionMatch ? institutionMatch[1] : '';
+          const degree = degreeMatch ? degreeMatch[1].trim() : '';
+          
+          if (institution) {
+            education.push({
+              institution,
+              degree,
+              dates: '',
+              details: []
+            });
+          }
+        });
+      }
+    }
+
+    // Extract skills
+    const skillsMatch = latexContent.match(/\\header\{Skills\}([^\\]+)/);
+    const skills = skillsMatch ? 
+      skillsMatch[1].split(',').map(skill => skill.trim()).filter(skill => skill && skill !== '\\\\') 
+      : [];
+
+    // Extract projects
+    const projects: any[] = [];
+    const projectsMatch = latexContent.match(/\\header\{Projects\}([^\\]+(?:\\textbf\{[^}]+\}[^\\]*)*)/);
+    if (projectsMatch) {
+      const projectContent = projectsMatch[1];
+      const projectMatches = projectContent.match(/\\textbf\{([^}]+)\}[^\\]*\\\\([^\\]*)/g);
+      
+      if (projectMatches) {
+        projectMatches.forEach(project => {
+          const nameMatch = project.match(/\\textbf\{([^}]+)\}/);
+          const descMatch = project.match(/\\\\([^\\]+)/);
+          const projectName = nameMatch ? nameMatch[1] : '';
+          const description = descMatch ? descMatch[1].trim() : '';
+          
+          if (projectName) {
+            projects.push({
+              name: projectName,
+              description
+            });
+          }
+        });
+      }
+    }
+
+    return {
+      name,
+      title,
+      location,
+      contacts,
+      experience,
+      education,
+      skills,
+      featured_project: projects
+    };
+  } catch (error) {
+    console.error('Error extracting data from LaTeX:', error);
+    return null;
+  }
+}

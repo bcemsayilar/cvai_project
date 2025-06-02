@@ -1,10 +1,5 @@
 import { Document, Page, Text, View, StyleSheet, Font } from '@react-pdf/renderer';
 
-// Import Noto Sans font files locally
-import NotoSansRegular from '../public/fonts/NotoSans-Regular.ttf';
-import NotoSansBold from '../public/fonts/NotoSans-Bold.ttf';
-import NotoSansItalic from '../public/fonts/NotoSans-Italic.ttf';
-
 // Define interfaces based on the potential JSON structures
 // Adding optional chaining for robustness
 
@@ -120,21 +115,43 @@ interface ResumeDataInput extends NestedResumeData {
   content?: OldResumeContent;
 }
 
-// Register Noto Sans font using local files
-Font.register({
-  family: 'Noto Sans',
-  fonts: [
-    { src: NotoSansRegular }, // Regular
-    { src: NotoSansBold, fontWeight: 'bold' }, // Bold
-    { src: NotoSansItalic, fontStyle: 'italic' }, // Italic
-  ],
-});
+// Register Noto Sans font with proper server-side paths
+try {
+  // On server-side, we need to use absolute paths to the public directory
+  const isServer = typeof window === 'undefined';
+  
+  if (isServer) {
+    const path = require('path');
+    const publicDir = path.join(process.cwd(), 'public');
+    
+    Font.register({
+      family: 'Noto Sans',
+      fonts: [
+        { src: path.join(publicDir, 'fonts/NotoSans-Regular.ttf') },
+        { src: path.join(publicDir, 'fonts/NotoSans-Bold.ttf'), fontWeight: 'bold' },
+        { src: path.join(publicDir, 'fonts/NotoSans-Italic.ttf'), fontStyle: 'italic' }
+      ],
+    });
+  } else {
+    // Client-side uses public URLs
+    Font.register({
+      family: 'Noto Sans',
+      fonts: [
+        { src: '/fonts/NotoSans-Regular.ttf' },
+        { src: '/fonts/NotoSans-Bold.ttf', fontWeight: 'bold' },
+        { src: '/fonts/NotoSans-Italic.ttf', fontStyle: 'italic' }
+      ],
+    });
+  }
+} catch (error) {
+  console.warn('Failed to register Noto Sans fonts, using system fallback fonts:', error);
+}
 
 // Make styles is now a function that accepts theme and design props
 // and returns a StyleSheet object.
 const makeStyles = (theme: any, design: DesignProps) => StyleSheet.create({
   body: {
-    fontFamily: design?.typography?.fontFamily || 'Noto Sans', // Use Noto Sans by default
+    fontFamily: design?.typography?.fontFamily || 'Noto Sans', // Use Noto Sans as primary, fallback to Helvetica
     fontSize: design?.typography?.fontSize || 10, // Default font size
     lineHeight: design?.typography?.lineHeight || 1.5,
     padding: design?.layout?.padding || 40,
@@ -150,7 +167,7 @@ const makeStyles = (theme: any, design: DesignProps) => StyleSheet.create({
   },
   name: {
     fontSize: design?.typography?.headingFontSize || 24,
-    fontFamily: design?.typography?.headingFontFamily || 'Noto Sans', // Use Noto Sans by default
+    fontFamily: design?.typography?.headingFontFamily || 'Noto Sans', // Use Noto Sans as primary
     fontWeight: 'bold',
     marginBottom: 15,
     color: theme.textPrimary,
@@ -201,7 +218,7 @@ const makeStyles = (theme: any, design: DesignProps) => StyleSheet.create({
   },
   sectionTitle: {
     fontSize: design?.typography?.headingFontSize || 16,
-    fontFamily: design?.typography?.headingFontFamily || 'Noto Sans', // Use Noto Sans by default
+    fontFamily: design?.typography?.headingFontFamily || 'Noto Sans', // Use Noto Sans as primary
     fontWeight: 'bold',
     marginBottom: 5,
     color: theme.accent,
