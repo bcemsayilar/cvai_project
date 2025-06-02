@@ -225,8 +225,11 @@ export const ResumePreview = memo(function ResumePreview({
 
 
         } else {
-          setResumePreviewData(null);
-          setResumePreviewError("Resume preview data is missing or empty. Please try enhancing again.");
+          // Don't show error for LaTeX format - it's expected to not have resume_preview_json
+          if (!processedPath?.endsWith('.tex')) {
+            setResumePreviewData(null);
+            setResumePreviewError("Resume preview data is missing or empty. Please try enhancing again.");
+          }
         }
 
         // Set ATS scores if available
@@ -292,7 +295,7 @@ export const ResumePreview = memo(function ResumePreview({
     };
 
     fetchResumeData();
-  }, [resumeId, originalPath]) // Removed supabase from dependency array
+  }, [resumeId, originalPath, processedPath])// Removed supabase from dependency array
 
   const downloadTxtFile = async () => {
     if (originalResume) {

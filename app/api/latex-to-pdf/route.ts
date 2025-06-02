@@ -59,22 +59,80 @@ export async function POST(req: NextRequest) {
 
     const latexContent = await latexFile.text();
 
-    // LaTeX'i PDF'e çevir - İŞTE TEK DEĞİŞİKLİK BU!
-    const formData = new FormData();
-    formData.append('text', latexContent);
-    formData.append('command', 'pdflatex');
-    
-    const pdfResponse = await fetch('https://latexonline.cc/compile', {
-      method: 'POST',
-      body: formData
-    });
-    
-    if (!pdfResponse.ok) {
-      return NextResponse.json({ error: 'LaTeX compilation failed' }, { status: 500, headers: corsHeaders });
-    }
-    
-    const pdfBlob = await pdfResponse.blob();
-    const pdfBuffer = await pdfBlob.arrayBuffer();
+    // Multi-service LaTeX compilation with fallbacks
+    const compileLatexToPdf = async (content: string): Promise<ArrayBuffer> => {
+      const services = [
+        {
+          name: 'LaTeX.Online',
+          url: 'https://latexonline.cc/compile',
+          method: 'POST',
+          prepareRequest: () => {
+            const formData = new FormData();
+            formData.append('text', content);
+            formData.append('command', 'pdflatex');
+            return { body: formData };
+          }
+        },
+        {
+          name: 'YtoTech LaTeX',
+          url: 'https://latex.ytotech.com/builds/sync',
+          method: 'POST',
+          prepareRequest: () => ({
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              resources: [{ main: true, content }],
+              compiler: 'pdflatex'
+            })
+          })
+        }
+      ];
+
+      let lastError: Error | null = null;
+
+      for (const service of services) {
+        try {
+          console.log(`Attempting ${service.name} compilation...`);
+          const requestConfig = service.prepareRequest();
+          
+          const response = await fetch(service.url, {
+            method: service.method,
+            ...requestConfig,
+            signal: AbortSignal.timeout(30000) // 30 second timeout
+          });
+
+          if (response.status === 503) {
+            const errorData = await response.json().catch(() => ({ message: 'Service temporarily unavailable' }));
+            throw new Error(`${service.name} service unavailable: ${errorData.message || 'Service temporarily down'}`);
+          }
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+            throw new Error(`${service.name} failed (${response.status}): ${errorData.message || 'Compilation error'}`);
+          }
+
+          const pdfBlob = await response.blob();
+          if (pdfBlob.size === 0) {
+            throw new Error(`${service.name} returned empty PDF`);
+          }
+
+          console.log(`✅ ${service.name} compilation successful`);
+          return await pdfBlob.arrayBuffer();
+
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          console.warn(`⚠️ ${service.name} unavailable, trying fallback service...`);
+          lastError = error instanceof Error ? error : new Error(String(error));
+          
+          // Continue to next service for any error
+          continue;
+        }
+      }
+
+      // All services failed
+      throw new Error(`All LaTeX compilation services failed. Last error: ${lastError?.message || 'Unknown error'}`);
+    };
+
+    const pdfBuffer = await compileLatexToPdf(latexContent);
 
     if (isPreview) {
       const base64Pdf = Buffer.from(pdfBuffer).toString('base64');

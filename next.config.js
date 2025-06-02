@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  experimental: {
+    allowedDevOrigins: ['192.168.1.116', 'localhost']
+  },
   webpack: (config) => {
     config.module.rules.push({
       test: /\.ttf$/, // Apply rule to files ending in .ttf

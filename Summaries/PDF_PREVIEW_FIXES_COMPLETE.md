@@ -1,4 +1,4 @@
-w# PDF Preview Fixes - Complete Report
+# PDF Preview Fixes - Complete Report
 
 ## Issues Fixed
 

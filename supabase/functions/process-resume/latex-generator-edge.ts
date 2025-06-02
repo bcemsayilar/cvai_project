@@ -45,9 +45,9 @@ export function generateATSLatexResume(data: ResumeData): string {
   } = data;
 
   // Build contact information line
-  const contactInfo = contacts
-    .map(contact => contact.value)
-    .join(' $\\cdot$ ');
+  const contactInfo = (contacts ?? [])
+    .map(c => escapeLaTeX(c.value))
+     .join(' $\\cdot$ ');
 
   // Generate LaTeX content
   const latex = `\\documentclass[a4paper]{article}
@@ -179,7 +179,9 @@ function generateProjectSection(proj: { name: string; description: string; techn
   const { name, description, technologies } = proj;
   
   return `\\textbf{${escapeLaTeX(name)}}\\\\
-${escapeLaTeX(description)}${technologies && technologies.length > 0 ? ` (${technologies.join(', ')})` : ''}\\\\`;
+${escapeLaTeX(description)}${technologies && technologies.length > 0
+  ? ` (${technologies.map(t => escapeLaTeX(t)).join(', ')})`
+  : ''}\\\\`;
 }
 
 function escapeLaTeX(text: string): string {

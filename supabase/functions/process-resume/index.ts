@@ -13,15 +13,6 @@ interface ATSCriteria {
   overallScore: number;
   recommendations: string[];
 }
-interface ATSCriteria {
-  keywordMatch: number;
-  formatScore: number;
-  contentQuality: number;
-  readabilityScore: number;
-  structureScore: number;
-  overallScore: number;
-  recommendations: string[];
-}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
