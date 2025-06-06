@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { checkRateLimit, getClientIdentifier } from '@/lib/rate-limit';
+import { validator_utils, sanitizer } from '@/lib/sanitization';
+import { envConfig } from '@/lib/env-config';
+import { logSecurityEvent, extractRequestInfo } from '@/lib/security-monitor';
 
 export async function POST(req: NextRequest) {
   const corsHeaders = {
@@ -11,19 +15,23 @@ export async function POST(req: NextRequest) {
     return new NextResponse('ok', { headers: corsHeaders });
   }
 
+  const requestInfo = extractRequestInfo(req);
+
   try {
     const { resumeId, isPreview = false } = await req.json();
 
-    if (!resumeId) {
-      return NextResponse.json({ error: 'Resume ID is required' }, { status: 400, headers: corsHeaders });
+    // Validate inputs
+    if (!resumeId || !validator_utils.validateResumeId(resumeId)) {
+      logSecurityEvent.inputValidationFailure({
+        ...requestInfo,
+        input: resumeId,
+        reason: 'Invalid resume ID format'
+      });
+      return NextResponse.json({ error: 'Valid Resume ID is required' }, { status: 400, headers: corsHeaders });
     }
 
-    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseKey) {
-      return NextResponse.json({ error: 'Missing Supabase configuration' }, { status: 500, headers: corsHeaders });
-    }
+    const supabaseUrl = envConfig.getSupabaseUrl();
+    const supabaseKey = envConfig.getServiceRoleKey();
 
     const supabase = createClient(supabaseUrl, supabaseKey, {
       global: { headers: { Authorization: req.headers.get('authorization') || '' } },
@@ -31,7 +39,40 @@ export async function POST(req: NextRequest) {
 
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) {
+      logSecurityEvent.authFailure({
+        ...requestInfo,
+        reason: 'Invalid or missing authentication token'
+      });
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders });
+    }
+
+    // Rate limiting check
+    const clientId = getClientIdentifier(req, user.id);
+    const rateLimitResult = await checkRateLimit(clientId, 'pdf');
+    
+    if (!rateLimitResult.success) {
+      logSecurityEvent.rateLimitHit({
+        userId: user.id,
+        ...requestInfo,
+        limit: 'PDF generation limit'
+      });
+      
+      return NextResponse.json(
+        { 
+          error: 'Rate limit exceeded. Please try again later.',
+          retryAfter: Math.ceil((rateLimitResult.reset.getTime() - Date.now()) / 1000)
+        }, 
+        { 
+          status: 429, 
+          headers: {
+            ...corsHeaders,
+            'X-RateLimit-Limit': rateLimitResult.limit.toString(),
+            'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+            'X-RateLimit-Reset': rateLimitResult.reset.toISOString(),
+            'Retry-After': Math.ceil((rateLimitResult.reset.getTime() - Date.now()) / 1000).toString()
+          }
+        }
+      );
     }
 
     const { data: resume, error: resumeError } = await supabase
@@ -59,22 +100,30 @@ export async function POST(req: NextRequest) {
 
     const latexContent = await latexFile.text();
 
+    // Sanitize LaTeX content before compilation
+    const sanitizedLatex = sanitizer.sanitizeLatex(latexContent);
+    
+    if (!sanitizedLatex || sanitizedLatex.trim().length === 0) {
+      return NextResponse.json({ error: 'Invalid or empty LaTeX content' }, { status: 400, headers: corsHeaders });
+    }
+
     // Multi-service LaTeX compilation with fallbacks
     const compileLatexToPdf = async (content: string): Promise<ArrayBuffer> => {
       const services = [
         {
-          name: 'LaTeX.Online',
-          url: 'https://latexonline.cc/compile',
+          name: 'YtoTech LaTeX',
+          url: 'https://latex.ytotech.com/builds/sync',
           method: 'POST',
-          prepareRequest: () => {
-            const formData = new FormData();
-            formData.append('text', content);
-            formData.append('command', 'pdflatex');
-            return { body: formData };
-          }
+          prepareRequest: () => ({
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              resources: [{ main: true, content }],
+              compiler: 'pdflatex'
+            })
+          })
         },
         {
-          name: 'YtoTech LaTeX',
+          name: 'LaTeX.Online',
           url: 'https://latex.ytotech.com/builds/sync',
           method: 'POST',
           prepareRequest: () => ({
@@ -132,7 +181,16 @@ export async function POST(req: NextRequest) {
       throw new Error(`All LaTeX compilation services failed. Last error: ${lastError?.message || 'Unknown error'}`);
     };
 
-    const pdfBuffer = await compileLatexToPdf(latexContent);
+    let pdfBuffer: ArrayBuffer;
+    try {
+      pdfBuffer = await compileLatexToPdf(sanitizedLatex);
+    } catch (compilationError) {
+      console.error('LaTeX compilation failed:', compilationError);
+      return NextResponse.json({ 
+        error: 'PDF compilation failed. Please check your resume content.',
+        details: envConfig.isProduction() ? undefined : (compilationError instanceof Error ? compilationError.message : String(compilationError))
+      }, { status: 500, headers: corsHeaders });
+    }
 
     if (isPreview) {
       const base64Pdf = Buffer.from(pdfBuffer).toString('base64');
@@ -141,30 +199,14 @@ export async function POST(req: NextRequest) {
         pdfData: `data:application/pdf;base64,${base64Pdf}` 
       }, { headers: corsHeaders });
     } else {
-      const pdfFileName = `processed/${user.id}/${resumeId}.pdf`;
+      // For download, return PDF buffer directly instead of saving to storage
+      // This prevents navigation issues and ensures direct download
+      const base64Pdf = Buffer.from(pdfBuffer).toString('base64');
       
-      const { error: uploadError } = await supabase.storage
-        .from('resumes')
-        .upload(pdfFileName, pdfBuffer, {
-          contentType: 'application/pdf',
-          upsert: true
-        });
-
-      if (uploadError) {
-        return NextResponse.json({ error: 'Failed to save PDF' }, { status: 500, headers: corsHeaders });
-      }
-
-      const { data: urlData, error: urlError } = await supabase.storage
-        .from('resumes')
-        .createSignedUrl(pdfFileName, 60 * 60);
-
-      if (urlError) {
-        return NextResponse.json({ error: 'Failed to create download URL' }, { status: 500, headers: corsHeaders });
-      }
-
       return NextResponse.json({ 
         success: true, 
-        downloadUrl: urlData.signedUrl 
+        pdfBuffer: base64Pdf,
+        fileName: `ats-optimized-resume-${resumeId}.pdf`
       }, { headers: corsHeaders });
     }
 
