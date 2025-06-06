@@ -118,8 +118,8 @@ export async function POST(req: NextRequest) {
     const compileLatexToPdf = async (content: string): Promise<ArrayBuffer> => {
       const services = [
         {
-          name: 'YtoTech LaTeX',
-          url: 'https://latex.ytotech.com/builds/sync',
+          name: 'LaTeX.Online',
+          url: 'https://latexonline.cc/compile',
           method: 'POST',
           prepareRequest: () => ({
             headers: { 'Content-Type': 'application/json' },
@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
         },
         {
           name: 'LaTeX.Online',
-          url: 'https://latex.ytotech.com/builds/sync',
+          url: 'https://latexonline.cc/compile',
           method: 'POST',
           prepareRequest: () => ({
             headers: { 'Content-Type': 'application/json' },

@@ -92,9 +92,16 @@ export const envConfig = {
 
   // Get optional Redis config for rate limiting
   getRedisConfig: (): { url?: string; token?: string } => {
+    const url = process.env.UPSTASH_REDIS_REST_URL;
+    const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+    if (!token) {
+      throw new Error('UPSTASH_REDIS_REST_TOKEN is required for Redis operations');
+    }
+
     return {
-      url: process.env.UPSTASH_REDIS_REST_URL || 'https://harmless-clam-14858.upstash.io',
-      token: process.env.UPSTASH_REDIS_REST_TOKEN || 'AToKAAIjcDExN2Y2MjdkNDMwYmY0YzVhOTUyNWFiYWYwYjNkM2ZhMXAxMA'
+      url: url || 'https://harmless-clam-14858.upstash.io',
+      token
     };
   },
 
