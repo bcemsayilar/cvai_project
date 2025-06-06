@@ -5,15 +5,22 @@ import { validator_utils, sanitizer } from '@/lib/sanitization';
 import { envConfig } from '@/lib/env-config';
 import { logSecurityEvent, extractRequestInfo } from '@/lib/security-monitor';
 
-export async function POST(req: NextRequest) {
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  };
+// CORS headers shared between POST and OPTIONS
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
 
-  if (req.method === 'OPTIONS') {
-    return new NextResponse('ok', { headers: corsHeaders });
-  }
+// Handle CORS preflight requests
+export async function OPTIONS() {
+  return new NextResponse(null, { 
+    status: 200, 
+    headers: corsHeaders 
+  });
+}
+
+export async function POST(req: NextRequest) {
 
   const requestInfo = extractRequestInfo(req);
 
@@ -181,9 +188,10 @@ export async function POST(req: NextRequest) {
       throw new Error(`All LaTeX compilation services failed. Last error: ${lastError?.message || 'Unknown error'}`);
     };
 
-    let pdfBuffer: ArrayBuffer;
+    let pdfBuffer: Buffer;
     try {
-      pdfBuffer = await compileLatexToPdf(sanitizedLatex);
+      const arrayBuffer = await compileLatexToPdf(sanitizedLatex);
+      pdfBuffer = Buffer.from(arrayBuffer);
     } catch (compilationError) {
       console.error('LaTeX compilation failed:', compilationError);
       return NextResponse.json({ 
@@ -193,7 +201,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (isPreview) {
-      const base64Pdf = Buffer.from(pdfBuffer).toString('base64');
+      const base64Pdf = pdfBuffer.toString('base64');
       return NextResponse.json({ 
         success: true, 
         pdfData: `data:application/pdf;base64,${base64Pdf}` 
@@ -201,7 +209,7 @@ export async function POST(req: NextRequest) {
     } else {
       // For download, return PDF buffer directly instead of saving to storage
       // This prevents navigation issues and ensures direct download
-      const base64Pdf = Buffer.from(pdfBuffer).toString('base64');
+      const base64Pdf = pdfBuffer.toString('base64');
       
       return NextResponse.json({ 
         success: true, 

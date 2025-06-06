@@ -1,4 +1,4 @@
-// @ts-nocheck
+"use client"
 "use client"
 import { useState, useEffect, useRef, useMemo, memo, useCallback } from "react"
 import { Button } from "@/components/ui/button"
@@ -11,7 +11,6 @@ import { Switch } from "@/components/ui/switch"
 import { PDFDownloadLink, PDFViewer } from '@react-pdf/renderer';
 import { ATSScoreDisplay } from "./ats-score-display"
 import { ResumePdfDocument } from "./resume-pdf-document"
-import { convertLatexDataToReactPdf, extractDataFromLatex } from "@/lib/latex-generator"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { useAuth } from "@/contexts/auth-context"
 
@@ -133,6 +132,48 @@ type ResumePreviewData = {
   design?: ResumeDesign
 }
 
+// Type guards for safe JSON parsing
+const isValidResumeContent = (data: unknown): data is ResumeContent => {
+  return data !== null && typeof data === "object" && !Array.isArray(data);
+}
+
+const isValidResumeDesign = (data: unknown): data is ResumeDesign => {
+  return data !== null && typeof data === "object" && !Array.isArray(data);
+}
+
+// Transformation function to convert ResumeDesign to DesignProps for PDF component
+const transformResumeDesignToDesignProps = (design: ResumeDesign): any => {
+  // Convert string font sizes to numbers (remove 'px' suffix)
+  const parseSize = (size: string): number => {
+    const numValue = parseInt(size.replace('px', ''));
+    return isNaN(numValue) ? 12 : numValue;
+  }
+
+  return {
+    typography: {
+      fontFamily: design.typography?.bodyFont || 'Noto Sans',
+      fontSize: parseSize(design.typography?.bodySize || '12px'),
+      lineHeight: 1.5,
+      paragraphSpacing: 20,
+      headingFontFamily: design.typography?.headingFont || 'Noto Sans',
+      headingFontSize: parseSize(design.typography?.headingSize || '16px'),
+    },
+    colors: {
+      primary: design.colorScheme?.textPrimary || '#333333',
+      secondary: design.colorScheme?.textSecondary || '#666666',
+      accent: design.colorScheme?.accent || '#007bff',
+      text: design.colorScheme?.textPrimary || '#333333',
+      background: design.colorScheme?.background || '#ffffff',
+    },
+    layout: {
+      columns: design.layout === 'two-column' ? 2 : 1,
+      columnGap: 20,
+      padding: 40,
+      margin: 0,
+    }
+  };
+}
+
 // For TypeScript/JSX errors, ensure tsconfig.json has: "jsx": "react-jsx"
 // and install @types/react if not present: pnpm add -D @types/react
 
@@ -216,7 +257,7 @@ export const ResumePreview = memo(function ResumePreview({
           return;
         }
 
-        let previewJson = resume.resume_preview_json;
+        let previewJson: unknown = resume.resume_preview_json;
         if (typeof previewJson === "string") {
           try {
             previewJson = JSON.parse(previewJson);
@@ -226,20 +267,25 @@ export const ResumePreview = memo(function ResumePreview({
           }
         }
 
+        // Type guard for preview JSON structure
+        const isValidPreviewJson = (data: unknown): data is Record<string, unknown> => {
+          return data !== null && typeof data === "object" && !Array.isArray(data);
+        };
+
         // Loosened: accept any object for previewJson, add checks for nested structure
-        if (previewJson && typeof previewJson === "object") {
+        if (isValidPreviewJson(previewJson)) {
            // Prioritize nested structure if it exists
-           const content = previewJson.content || previewJson.sections; // Check 'sections' as well for content
-           const design = previewJson.design;
+           const content = (previewJson as any).content || (previewJson as any).sections; // Check 'sections' as well for content
+           const design = (previewJson as any).design;
 
           if (content) {
              setResumePreviewData({ content, design }); // Set content and design together
              // Removed incomplete data check here as the PDF component handles variations
           } else {
              // If no 'content' or 'sections', assume it might be the flat structure
-             setResumePreviewData({ content: previewJson as ResumeContent, design: previewJson.design });
+             setResumePreviewData({ content: previewJson as ResumeContent, design: (previewJson as any).design });
              // Add a generic warning if the expected structure isn't found
-             if (!previewJson.name && !previewJson.sections) { // Check for a key from flat structure
+             if (!(previewJson as any).name && !(previewJson as any).sections) { // Check for a key from flat structure
                   setResumePreviewError("Resume data structure is unexpected. Preview may be incomplete.");
              }
           }
@@ -283,8 +329,19 @@ export const ResumePreview = memo(function ResumePreview({
               skills: []
             },
             design: {
-              layout: { columns: 1 },
-              colors: { accent: '#000000', textPrimary: '#000000' }
+              layout: "modern",
+              colorScheme: {
+                background: "#ffffff",
+                textPrimary: "#000000",
+                textSecondary: "#666666",
+                accent: "#000000"
+              },
+              typography: {
+                headingFont: "Arial",
+                bodyFont: "Arial",
+                headingSize: "16px",
+                bodySize: "12px"
+              }
             }
           });
         } else {
@@ -322,7 +379,7 @@ export const ResumePreview = memo(function ResumePreview({
     };
 
     fetchResumeData();
-  }, [resumeId, originalPath, processedPath])// Removed supabase from dependency array
+  }, [resumeId, originalPath, processedPath]) // Added processedPath to dependency array
 
   const downloadTxtFile = async () => {
     if (originalResume) {
@@ -395,7 +452,14 @@ export const ResumePreview = memo(function ResumePreview({
   // Memoize the PDF document with deeper dependency checking to prevent unnecessary re-renders
   const pdfDocument = useMemo(() => {
     if (!resumePreviewData?.content) return null;
-    return <ResumePdfDocument resumeData={resumePreviewData} mode={isDarkMode ? 'dark' : 'light'} />;
+    
+    // Transform the design from ResumeDesign to DesignProps format
+    const transformedResumeData = {
+      content: resumePreviewData.content,
+      design: resumePreviewData.design ? transformResumeDesignToDesignProps(resumePreviewData.design) : undefined
+    };
+    
+    return <ResumePdfDocument resumeData={transformedResumeData} mode={isDarkMode ? 'dark' : 'light'} />;
   }, [
     resumePreviewData?.content?.name,
     resumePreviewData?.content?.title, 
@@ -409,7 +473,14 @@ export const ResumePreview = memo(function ResumePreview({
   // Memoize the download document separately to avoid re-creating for downloads
   const downloadDocument = useMemo(() => {
     if (!resumePreviewData?.content) return null;
-    return <ResumePdfDocument resumeData={resumePreviewData} mode={isDarkMode ? 'dark' : 'light'} />;
+    
+    // Transform the design from ResumeDesign to DesignProps format
+    const transformedResumeData = {
+      content: resumePreviewData.content,
+      design: resumePreviewData.design ? transformResumeDesignToDesignProps(resumePreviewData.design) : undefined
+    };
+    
+    return <ResumePdfDocument resumeData={transformedResumeData} mode={isDarkMode ? 'dark' : 'light'} />;
   }, [
     resumePreviewData?.content?.name,
     resumePreviewData?.content?.title, 
@@ -499,22 +570,38 @@ export const ResumePreview = memo(function ResumePreview({
      }
 
      // Use PDFViewer to display the ResumePdfDocument component with proper sizing
+    if (pdfDocument) {
+      return (
+           <div className="w-full" style={{ height: '80vh', minHeight: '600px' }}>
+             <PDFViewer 
+               width="100%"
+               height="100%"
+               style={{ 
+                 border: 'none',
+                 height: '80vh',
+                 minHeight: '600px'
+               }}
+               key={`pdf-viewer-${resumeId}-${isDarkMode}`}
+             >
+               {pdfDocument}
+             </PDFViewer>
+              </div>
+       );
+    }
+    
     return (
-         <div className="w-full" style={{ height: '80vh', minHeight: '600px' }}>
-           <PDFViewer 
-             width="100%"
-             height="100%"
-             style={{ 
-               border: 'none',
-               height: '80vh',
-               minHeight: '600px'
-             }}
-             key={`pdf-viewer-${resumeId}-${isDarkMode}`}
-           >
-             {pdfDocument}
-           </PDFViewer>
-            </div>
-     );
+      <div className="flex items-center justify-center h-full min-h-[400px] p-8">
+        <div className="text-center space-y-4 max-w-md">
+          <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto">
+            <FileText className="w-8 h-8 text-gray-600 dark:text-gray-400" />
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white">No Preview Available</h3>
+          <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed">
+            Unable to generate PDF preview. Please check your resume data.
+          </p>
+        </div>
+      </div>
+    );
   };
 
   // Function to load LaTeX PDF preview with proper error handling
@@ -757,25 +844,27 @@ export const ResumePreview = memo(function ResumePreview({
                   <span>{isDownloadingPdf ? 'Downloading...' : 'Download ATS PDF'}</span>
                 </Button>
               ) : (
-                <PDFDownloadLink
-                  document={downloadDocument}
-                  fileName={downloadFileName}
-                  key={`pdf-download-${resumeId}-${isDarkMode}`}
-                >
-                  {({ blob, url, loading, error }) => (
-                    <Button
-                      className="flex items-center space-x-2"
-                      disabled={loading}
-                    >
-                      {loading ? (
-                        <Loader2 className="animate-spin" size={18} />
-                      ) : (
-                        <Download size={18} />
-                      )}
-                      <span>{loading ? 'Generating PDF...' : 'Download PDF'}</span>
-                    </Button>
-                  )}
-                </PDFDownloadLink>
+                downloadDocument && (
+                  <PDFDownloadLink
+                    document={downloadDocument}
+                    fileName={downloadFileName}
+                    key={`pdf-download-${resumeId}-${isDarkMode}`}
+                  >
+                    {({ blob, url, loading, error }) => (
+                      <Button
+                        className="flex items-center space-x-2"
+                        disabled={loading}
+                      >
+                        {loading ? (
+                          <Loader2 className="animate-spin" size={18} />
+                        ) : (
+                          <Download size={18} />
+                        )}
+                        <span>{loading ? 'Generating PDF...' : 'Download PDF'}</span>
+                      </Button>
+                    )}
+                  </PDFDownloadLink>
+                )
               )}
             </>
           )}

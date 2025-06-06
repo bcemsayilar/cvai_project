@@ -2,25 +2,21 @@
 export const envConfig = {
   // Validate required environment variables
   validate: (): { valid: boolean; missing: string[] } => {
-    const envVars = {
-    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
-    NODE_ENV: process.env.NODE_ENV,
-  };
-    const required = [
+    const missing: string[] = [];
+    
+    // Client-side required vars (available in browser)
+    const clientRequired = [
       'NEXT_PUBLIC_SUPABASE_URL',
       'NEXT_PUBLIC_SUPABASE_ANON_KEY'
     ];
 
+    // Server-side required vars (only available on server)
     const serverRequired = [
       'SUPABASE_SERVICE_ROLE_KEY'
     ];
 
-    const missing: string[] = [];
-
     // Check client-side required vars
-    required.forEach(key => {
+    clientRequired.forEach(key => {
       if (!process.env[key]) {
         missing.push(key);
       }
@@ -114,8 +110,7 @@ export const envConfig = {
     }
 
     return process.env.NEXT_PUBLIC_APP_URL || 
-           process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 
-           'http://localhost:3000';
+           (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
   }
 };
 
@@ -171,11 +166,25 @@ export const securityConfig = {
   }
 };
 
-// Environment validation on module load
-const validation = envConfig.validate();
-if (!validation.valid) {
-  console.error('Missing required environment variables:', validation.missing);
-  if (envConfig.isProduction()) {
-    throw new Error(`Missing required environment variables: ${validation.missing.join(', ')}`);
+// Environment validation - only run on server or during build
+// Don't throw errors during development to prevent crashes
+if (typeof window === 'undefined') {
+  try {
+    const validation = envConfig.validate();
+    if (!validation.valid) {
+      console.error('Missing required environment variables:', validation.missing);
+      
+      // Only throw in production, warn in development
+      if (envConfig.isProduction()) {
+        throw new Error(`Missing required environment variables: ${validation.missing.join(', ')}`);
+      } else {
+        console.warn('Some environment variables are missing. App may not work correctly.');
+      }
+    }
+  } catch (error) {
+    console.error('Environment validation error:', error);
+    if (envConfig.isProduction()) {
+      throw error;
+    }
   }
 }

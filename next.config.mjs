@@ -1,12 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Remove hardcoded secrets - use .env.local instead
-  // env: {
-  //   NEXT_PUBLIC_SUPABASE_URL: 'https://rhnnamnpcdwoqrdctux.supabase.co',
-  //   NEXT_PUBLIC_SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
-  //   SUPABASE_SERVICE_ROLE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
-  //   NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
-  // },
   eslint: {
     ignoreDuringBuilds: true,
   },
