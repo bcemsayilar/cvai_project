@@ -7,7 +7,7 @@ import { createSupabaseClient } from "@/lib/supabase"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { FileText, Download, Loader2 } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
+import { useToast } from "@/components/ui/use-toast"
 
 interface ComparisonViewProps {
   resumeId?: string | null

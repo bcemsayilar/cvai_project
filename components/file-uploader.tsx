@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button"
 import { Upload, File, X } from "lucide-react"
 import { createSupabaseClient } from "@/lib/supabase"
 import { useAuth } from "@/contexts/auth-context"
-import { useToast } from "@/hooks/use-toast"
+import { useToast } from "@/components/ui/use-toast"
 import { formatFileSize } from "@/lib/utils"
+import { validator_utils, sanitizer } from "@/lib/sanitization"
 
 interface FileUploaderProps {
   onFileUpload: (file: File | null, resumeId?: string, filePath?: string) => void
@@ -44,30 +45,38 @@ export function FileUploader({ onFileUpload, file }: FileUploaderProps) {
 
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const droppedFile = e.dataTransfer.files[0]
-      if (isValidFileType(droppedFile)) {
-        handleUpload(droppedFile)
-      } else {
+      
+      // Validate file before processing
+      const validation = validator_utils.validateFileUpload(droppedFile)
+      if (!validation.valid) {
         toast({
-          title: "Invalid file type",
-          description: "Please upload a PDF, DOC, DOCX, or TXT file.",
+          title: "Invalid file",
+          description: validation.error,
           variant: "destructive",
         })
+        return
       }
+      
+      handleUpload(droppedFile)
     }
   }
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const selectedFile = e.target.files[0]
-      if (isValidFileType(selectedFile)) {
-        handleUpload(selectedFile)
-      } else {
+      
+      // Validate file before processing
+      const validation = validator_utils.validateFileUpload(selectedFile)
+      if (!validation.valid) {
         toast({
-          title: "Invalid file type",
-          description: "Please upload a PDF, DOC, DOCX, or TXT file.",
+          title: "Invalid file",
+          description: validation.error,
           variant: "destructive",
         })
+        return
       }
+      
+      handleUpload(selectedFile)
     }
   }
 
@@ -98,7 +107,8 @@ export function FileUploader({ onFileUpload, file }: FileUploaderProps) {
 
         // First, upload the file to storage to get the path
         const fileExt = file.name.split(".").pop()
-        const fileName = `${Date.now()}.${fileExt}`
+        const sanitizedFileName = sanitizer.sanitizeFileName(file.name)
+        const fileName = `${Date.now()}_${sanitizedFileName}`
         const filePath = `original/${user.id}/${fileName}`
 
         console.log("Uploading file to path:", filePath)

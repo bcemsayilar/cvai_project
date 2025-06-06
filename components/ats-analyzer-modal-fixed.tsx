@@ -8,7 +8,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Loader2, Target, TrendingUp, Lightbulb, CheckCircle, FileText, Sparkles, AlertTriangle } from "lucide-react"
 import { ATSScoreDisplay } from "@/components/ats-score-display"
 import { createSupabaseClient } from "@/lib/supabase"
-import { useToast } from "@/hooks/use-toast"
+import { useToast } from "@/components/ui/use-toast"
 import { useAuth } from "@/contexts/auth-context"
 
 interface ATSScore {

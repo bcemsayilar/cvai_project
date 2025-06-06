@@ -6,14 +6,17 @@ import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AlertTriangle, Download, FileText, Loader2, Moon, Sun, BarChart3 } from "lucide-react"
 import { createSupabaseClient } from "@/lib/supabase"
-import { useToast } from "@/hooks/use-toast"
+import { useToast } from "@/components/ui/use-toast"
 import { Switch } from "@/components/ui/switch"
 import { PDFDownloadLink, PDFViewer } from '@react-pdf/renderer';
 import { ATSScoreDisplay } from "./ats-score-display"
 import { ResumePdfDocument } from "./resume-pdf-document"
-import { convertLatexDataToReactPdf, extractDataFromLatex } from "../lib/latex-generator"
+import { convertLatexDataToReactPdf, extractDataFromLatex } from "@/lib/latex-generator"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { useAuth } from "@/contexts/auth-context"
+
+// Buffer polyfill for browser environment
+import { Buffer } from 'buffer';
 
 interface ATSScore {
   keywordMatch: number
@@ -151,6 +154,24 @@ export const ResumePreview = memo(function ResumePreview({
   const [isLatexFormat, setIsLatexFormat] = useState<boolean>(false)
   const [latexPdfUrl, setLatexPdfUrl] = useState<string | null>(null)
   const [isLoadingLatexPdf, setIsLoadingLatexPdf] = useState<boolean>(false)
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState<boolean>(false)
+  
+  // Persist LaTeX PDF URL in sessionStorage to prevent loss on navigation
+  useEffect(() => {
+    if (resumeId && latexPdfUrl) {
+      sessionStorage.setItem(`latex-pdf-${resumeId}`, latexPdfUrl);
+    }
+  }, [resumeId, latexPdfUrl]);
+
+  // Restore LaTeX PDF URL from sessionStorage on component mount
+  useEffect(() => {
+    if (resumeId && isLatexFormat) {
+      const savedPdfUrl = sessionStorage.getItem(`latex-pdf-${resumeId}`);
+      if (savedPdfUrl && !latexPdfUrl) {
+        setLatexPdfUrl(savedPdfUrl);
+      }
+    }
+  }, [resumeId, isLatexFormat, latexPdfUrl]);
   const { toast } = useToast()
   const { session } = useAuth();
   const accessToken = session?.access_token;
@@ -244,12 +265,18 @@ export const ResumePreview = memo(function ResumePreview({
         if (processedPath && processedPath.endsWith('.tex')) {
           setIsLatexFormat(true);
           
+          // Check for cached PDF URL first
+          const cachedPdfUrl = sessionStorage.getItem(`latex-pdf-${resumeId}`);
+          if (cachedPdfUrl && !latexPdfUrl) {
+            setLatexPdfUrl(cachedPdfUrl);
+          }
+          
           // For LaTeX format, we'll display it properly using the LaTeX-to-PDF API
           // Set a placeholder that indicates this is a LaTeX resume
           setResumePreviewData({ 
             content: {
               name: "ATS-Optimized Resume",
-              title: "Loading LaTeX preview...",
+              title: "LaTeX format detected - generating preview...",
               contact: {},
               experience: [],
               education: [],
@@ -365,11 +392,33 @@ export const ResumePreview = memo(function ResumePreview({
     }
   };
 
-  // Memoize the PDF document to prevent unnecessary re-renders
+  // Memoize the PDF document with deeper dependency checking to prevent unnecessary re-renders
   const pdfDocument = useMemo(() => {
     if (!resumePreviewData?.content) return null;
     return <ResumePdfDocument resumeData={resumePreviewData} mode={isDarkMode ? 'dark' : 'light'} />;
-  }, [resumePreviewData, isDarkMode]);
+  }, [
+    resumePreviewData?.content?.name,
+    resumePreviewData?.content?.title, 
+    resumePreviewData?.content?.experience,
+    resumePreviewData?.content?.education,
+    resumePreviewData?.content?.skills,
+    resumePreviewData?.design,
+    isDarkMode
+  ]);
+
+  // Memoize the download document separately to avoid re-creating for downloads
+  const downloadDocument = useMemo(() => {
+    if (!resumePreviewData?.content) return null;
+    return <ResumePdfDocument resumeData={resumePreviewData} mode={isDarkMode ? 'dark' : 'light'} />;
+  }, [
+    resumePreviewData?.content?.name,
+    resumePreviewData?.content?.title, 
+    resumePreviewData?.content?.experience,
+    resumePreviewData?.content?.education,
+    resumePreviewData?.content?.skills,
+    resumePreviewData?.design,
+    isDarkMode
+  ]);
 
   // Memoize the download filename
   const downloadFileName = useMemo(() => {
@@ -468,10 +517,14 @@ export const ResumePreview = memo(function ResumePreview({
      );
   };
 
-  // Function to load LaTeX PDF preview
+  // Function to load LaTeX PDF preview with proper error handling
   const loadLatexPdfPreview = useCallback(async () => {
     if (!resumeId || !isLatexFormat) return;
     setIsLoadingLatexPdf(true);
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+    
     try {
       const response = await fetch('/api/latex-to-pdf', {
         method: 'POST',
@@ -482,28 +535,154 @@ export const ResumePreview = memo(function ResumePreview({
         body: JSON.stringify({
           resumeId,
           isPreview: true
-        })
+        }),
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId);
+      
       if (!response.ok) {
-        throw new Error('Failed to generate LaTeX PDF preview');
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(`LaTeX PDF generation failed: ${errorData.error || response.statusText}`);
       }
+      
       const result = await response.json();
       if (result.success && result.pdfData) {
         setLatexPdfUrl(result.pdfData);
       } else {
-        throw new Error(result.error || 'Unknown error generating PDF');
+        throw new Error(result.error || 'PDF generation returned no data');
       }
     } catch (error) {
+      clearTimeout(timeoutId);
       console.error('Error loading LaTeX PDF preview:', error);
+      
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       toast({
         title: "Preview Error",
-        description: "Could not load LaTeX PDF preview. Showing fallback view.",
+        description: `Could not load LaTeX PDF preview: ${errorMessage}`,
         variant: "destructive",
       });
+      
+      // Reset PDF URL on error
+      setLatexPdfUrl(null);
     } finally {
       setIsLoadingLatexPdf(false);
     }
   }, [resumeId, isLatexFormat, toast, accessToken]);
+
+  // Handle ATS PDF download with proper error handling
+  const handleATSPdfDownload = useCallback(async () => {
+    if (isDownloadingPdf) return; // Prevent multiple downloads
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout for download
+    
+    setIsDownloadingPdf(true);
+    
+    try {
+      // Show loading state
+      toast({
+        title: "Generating PDF...",
+        description: "Your ATS-optimized resume is being prepared for download.",
+      });
+
+      // Try the new blob-based download method first
+      try {
+        const response = await fetch('/api/latex-to-pdf', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
+          },
+          body: JSON.stringify({ resumeId, isPreview: false }),
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Download request failed' }));
+          throw new Error(`Download failed: ${errorData.error || response.statusText}`);
+        }
+        
+        const result = await response.json();
+        if (result.success && result.pdfBuffer) {
+          // Convert base64 to blob and download directly - no URL opening
+          const base64Data = result.pdfBuffer.replace(/^data:application\/pdf;base64,/, '');
+          const binaryData = Buffer.from(base64Data, 'base64');
+          const pdfBlob = new Blob([binaryData], { type: 'application/pdf' });
+          const downloadUrl = URL.createObjectURL(pdfBlob);
+          
+          const link = document.createElement('a');
+          link.href = downloadUrl;
+          link.download = `ats-optimized-resume-${new Date().toISOString().split('T')[0]}.pdf`;
+          link.style.display = 'none';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          
+          // Clean up the object URL
+          setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
+          
+          toast({
+            title: "Download Complete",
+            description: "Your ATS-optimized resume has been downloaded successfully.",
+          });
+          return; // Success, exit function
+        }
+      } catch (primaryError) {
+        console.warn('Primary download method failed, trying fallback:', primaryError);
+        
+        // Fallback to direct API download
+        const fallbackUrl = `/api/download-pdf`;
+        const fallbackResponse = await fetch(fallbackUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
+          },
+          body: JSON.stringify({ resumeId }),
+        });
+
+        if (fallbackResponse.ok) {
+          const blob = await fallbackResponse.blob();
+          const downloadUrl = URL.createObjectURL(blob);
+          
+          const link = document.createElement('a');
+          link.href = downloadUrl;
+          link.download = `ats-optimized-resume-${new Date().toISOString().split('T')[0]}.pdf`;
+          link.style.display = 'none';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          
+          setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
+          
+          toast({
+            title: "Download Complete",
+            description: "Your ATS-optimized resume has been downloaded successfully.",
+          });
+          return; // Success, exit function
+        }
+        
+        throw primaryError; // If fallback also fails, throw the original error
+      }
+      
+      throw new Error('PDF generation failed');
+      
+    } catch (error) {
+      console.error('Download error:', error);
+      
+      const errorMessage = error instanceof Error ? error.message : 'Unknown download error';
+      toast({
+        title: "Download Failed",
+        description: `Could not download the ATS-optimized resume: ${errorMessage}`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  }, [resumeId, accessToken, toast, isDownloadingPdf]);
 
   // Load LaTeX PDF when component mounts and it's a LaTeX format
   useEffect(() => {
@@ -567,52 +746,20 @@ export const ResumePreview = memo(function ResumePreview({
               {isLatexFormat ? (
                 <Button
                   className="flex items-center space-x-2"
-                  onClick={async () => {
-                    try {
-                      const response = await fetch('/api/latex-to-pdf', {
-                        method: 'POST',
-                        headers: {
-                          'Content-Type': 'application/json',
-                          ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
-                        },
-                        body: JSON.stringify({ resumeId, isPreview: false })
-                      });
-                      
-                      if (!response.ok) throw new Error('Download failed');
-                      
-                      const result = await response.json();
-                      if (result.success && result.downloadUrl) {
-                        const link = document.createElement('a');
-                        link.href = result.downloadUrl;
-                        link.download = 'ats-optimized-resume.pdf';
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                        
-                        toast({
-                          title: "Download Complete",
-                          description: "Your ATS-optimized resume has been downloaded.",
-                        });
-                      } else {
-                        throw new Error(result.error || 'Download failed');
-                      }
-                    } catch (error) {
-                      console.error('Download error:', error);
-                      toast({
-                        title: "Download Failed",
-                        description: "Could not download the ATS-optimized resume.",
-                        variant: "destructive",
-                      });
-                    }
-                  }}
+                  onClick={handleATSPdfDownload}
+                  disabled={isDownloadingPdf}
                 >
-                  <Download size={18} />
-                  <span>Download ATS PDF</span>
+                  {isDownloadingPdf ? (
+                    <Loader2 className="animate-spin" size={18} />
+                  ) : (
+                    <Download size={18} />
+                  )}
+                  <span>{isDownloadingPdf ? 'Downloading...' : 'Download ATS PDF'}</span>
                 </Button>
               ) : (
                 <PDFDownloadLink
-                  document={<ResumePdfDocument resumeData={resumePreviewData} mode={isDarkMode ? 'dark' : 'light'} />}
-                  fileName={`${resumePreviewData?.content?.name || 'resume'}.pdf`}
+                  document={downloadDocument}
+                  fileName={downloadFileName}
                   key={`pdf-download-${resumeId}-${isDarkMode}`}
                 >
                   {({ blob, url, loading, error }) => (
