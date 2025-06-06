@@ -187,23 +187,65 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signIn = async (email: string, password: string) => {
-    console.log("Attempting sign in with:", email)
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-    console.log("Sign in result:", error ? "Error" : "Success")
-    return { error }
+    console.log("Attempting sign in with:", email?.substring(0, 5) + "...")
+    
+    // Clear previous errors
+    setIsError(false)
+    setErrorMessage(null)
+    
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+      
+      if (error) {
+        console.error("Sign in error:", error.message)
+        setIsError(true)
+        setErrorMessage(error.message)
+      } else {
+        console.log("Sign in successful")
+      }
+      
+      return { error }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Authentication failed"
+      console.error("Sign in exception:", message)
+      setIsError(true)
+      setErrorMessage(message)
+      return { error: { message } }
+    }
   }
 
   const signUp = async (email: string, password: string) => {
-    console.log("Attempting sign up with:", email)
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
-    })
-    console.log("Sign up result:", error ? "Error" : "Success")
-    return { error, data }
+    console.log("Attempting sign up with:", email?.substring(0, 5) + "...")
+    
+    // Clear previous errors
+    setIsError(false)
+    setErrorMessage(null)
+    
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      })
+      
+      if (error) {
+        console.error("Sign up error:", error.message)
+        setIsError(true)
+        setErrorMessage(error.message)
+      } else {
+        console.log("Sign up successful")
+      }
+      
+      return { error, data }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Registration failed"
+      console.error("Sign up exception:", message)
+      setIsError(true)
+      setErrorMessage(message)
+      return { error: { message }, data: null }
+    }
   }
 
   const signOut = async () => {

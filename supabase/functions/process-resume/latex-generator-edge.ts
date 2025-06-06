@@ -187,17 +187,44 @@ ${escapeLaTeX(description)}${technologies && technologies.length > 0
 function escapeLaTeX(text: string): string {
   if (!text) return '';
   
-  return text
-    .replace(/\\/g, '\\textbackslash')
+  // First sanitize the input to remove dangerous patterns
+  let sanitized = text
+    // Remove potential command injections
+    .replace(/\\(input|include|write|immediate|openout|closeout|read|openin|closein|csname|expandafter|noexpand|shell|system|def|let|gdef|xdef|catcode|end|begin)\b/gi, '')
+    // Remove file operations and system commands
+    .replace(/\\(documentclass|usepackage|newcommand|renewcommand|newenvironment|renewenvironment)\b/gi, '')
+    // Remove dangerous control sequences
+    .replace(/\\[a-zA-Z@]+/g, match => {
+      // Allow only safe LaTeX commands
+      const safeCommands = ['textbf', 'textit', 'emph', 'underline', 'item', 'hfill', 'vspace', 'newline'];
+      const command = match.slice(1); // Remove the backslash
+      return safeCommands.includes(command) ? match : '';
+    })
+    // Remove any remaining backslash sequences that could be dangerous
+    .replace(/\\./g, match => {
+      // Only allow specific escaped characters
+      const allowedEscapes = ['\\\\', '\\ ', '\\n', '\\t'];
+      return allowedEscapes.includes(match) ? match : '';
+    });
+  
+  // Then escape special LaTeX characters
+  return sanitized
+    .replace(/\\/g, '\\textbackslash{}')
     .replace(/\{/g, '\\{')
     .replace(/\}/g, '\\}')
     .replace(/\$/g, '\\$')
     .replace(/&/g, '\\&')
     .replace(/%/g, '\\%')
     .replace(/#/g, '\\#')
-    .replace(/\^/g, '\\textasciicircum')
+    .replace(/\^/g, '\\textasciicircum{}')
     .replace(/_/g, '\\_')
-    .replace(/~/g, '\\textasciitilde');
+    .replace(/~/g, '\\textasciitilde{}')
+    // Additional security: escape potentially dangerous characters
+    .replace(/\|/g, '\\textbar{}')
+    .replace(/</g, '\\textless{}')
+    .replace(/>/g, '\\textgreater{}')
+    // Limit length to prevent DoS
+    .substring(0, 1000);
 }
 
 export type { ResumeData };
