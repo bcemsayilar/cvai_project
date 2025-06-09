@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Upload, File, X } from "lucide-react"
 import { createSupabaseClient } from "@/lib/supabase"
@@ -14,9 +14,11 @@ import { validator_utils, sanitizer } from "@/lib/sanitization"
 interface FileUploaderProps {
   onFileUpload: (file: File | null, resumeId?: string, filePath?: string) => void
   file: File | null
+  shouldReset?: boolean
+  onResetComplete?: () => void
 }
 
-export function FileUploader({ onFileUpload, file }: FileUploaderProps) {
+export function FileUploader({ onFileUpload, file, shouldReset, onResetComplete }: FileUploaderProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -25,6 +27,16 @@ export function FileUploader({ onFileUpload, file }: FileUploaderProps) {
   // Create supabase client with useRef to prevent recreation on every render
   const supabaseRef = useRef(createSupabaseClient())
   const supabase = supabaseRef.current
+
+  // Handle external reset requests
+  useEffect(() => {
+    if (shouldReset && fileInputRef.current) {
+      fileInputRef.current.value = ""
+      if (onResetComplete) {
+        onResetComplete()
+      }
+    }
+  }, [shouldReset, onResetComplete])
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
