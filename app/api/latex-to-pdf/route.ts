@@ -118,8 +118,8 @@ export async function POST(req: NextRequest) {
     const compileLatexToPdf = async (content: string): Promise<ArrayBuffer> => {
       const services = [
         {
-          name: 'LaTeX.Online',
-          url: 'https://latexonline.cc/compile',
+          name: 'YtoTech LaTeX',
+          url: 'https://latex.ytotech.com/builds/sync',
           method: 'POST',
           prepareRequest: () => ({
             headers: { 'Content-Type': 'application/json' },
@@ -129,18 +129,6 @@ export async function POST(req: NextRequest) {
             })
           })
         },
-        {
-          name: 'LaTeX.Online',
-          url: 'https://latexonline.cc/compile',
-          method: 'POST',
-          prepareRequest: () => ({
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              resources: [{ main: true, content }],
-              compiler: 'pdflatex'
-            })
-          })
-        }
       ];
 
       let lastError: Error | null = null;
@@ -156,14 +144,13 @@ export async function POST(req: NextRequest) {
             signal: AbortSignal.timeout(30000) // 30 second timeout
           });
 
-          if (response.status === 503) {
-            const errorData = await response.json().catch(() => ({ message: 'Service temporarily unavailable' }));
-            throw new Error(`${service.name} service unavailable: ${errorData.message || 'Service temporarily down'}`);
-          }
-
           if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-            throw new Error(`${service.name} failed (${response.status}): ${errorData.message || 'Compilation error'}`);
+            const errorBody = await response.json().catch(() => response.text());
+            const errorMessage = typeof errorBody === 'object' && errorBody !== null && 'error' in errorBody && typeof errorBody.error === 'string'
+                ? errorBody.error
+                : typeof errorBody === 'string' ? errorBody : `Unknown error (Status: ${response.status})`;
+
+            throw new Error(`${service.name} failed (${response.status}): ${errorMessage}`);
           }
 
           const pdfBlob = await response.blob();
@@ -171,12 +158,17 @@ export async function POST(req: NextRequest) {
             throw new Error(`${service.name} returned empty PDF`);
           }
 
+          if (response.headers.get('content-type') !== 'application/pdf') {
+            const responseText = await response.text();
+            throw new Error(`${service.name} did not return a PDF. Content-Type: ${response.headers.get('content-type')}. Response start: ${responseText.substring(0, 200)}...`);
+          }
+
           console.log(`✅ ${service.name} compilation successful`);
           return await pdfBlob.arrayBuffer();
 
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);
-          console.warn(`⚠️ ${service.name} unavailable, trying fallback service...`);
+          console.warn(`⚠️ ${service.name} compilation failed, trying fallback service... Error: ${errorMessage}`);
           lastError = error instanceof Error ? error : new Error(String(error));
           
           // Continue to next service for any error
