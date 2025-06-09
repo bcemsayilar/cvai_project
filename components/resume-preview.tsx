@@ -660,12 +660,12 @@ export const ResumePreview = memo(function ResumePreview({
   // Handle ATS PDF download with proper error handling
   const handleATSPdfDownload = useCallback(async () => {
     if (isDownloadingPdf) return; // Prevent multiple downloads
-    
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout for download
-    
+
     setIsDownloadingPdf(true);
-    
+
     try {
       // Show loading state
       toast({
@@ -684,14 +684,12 @@ export const ResumePreview = memo(function ResumePreview({
           body: JSON.stringify({ resumeId, isPreview: false }),
           signal: controller.signal
         });
-        
-        clearTimeout(timeoutId);
-        
+
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: 'Download request failed' }));
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
           throw new Error(`Download failed: ${errorData.error || response.statusText}`);
         }
-        
+
         const result = await response.json();
         if (result.success && result.pdfBuffer) {
           // Convert base64 to blob and download directly - no URL opening
@@ -699,7 +697,7 @@ export const ResumePreview = memo(function ResumePreview({
           const binaryData = Buffer.from(base64Data, 'base64');
           const pdfBlob = new Blob([binaryData], { type: 'application/pdf' });
           const downloadUrl = URL.createObjectURL(pdfBlob);
-          
+
           const link = document.createElement('a');
           link.href = downloadUrl;
           link.download = `ats-optimized-resume-${new Date().toISOString().split('T')[0]}.pdf`;
@@ -707,10 +705,10 @@ export const ResumePreview = memo(function ResumePreview({
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
-          
+
           // Clean up the object URL
           setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
-          
+
           toast({
             title: "Download Complete",
             description: "Your ATS-optimized resume has been downloaded successfully.",
@@ -719,7 +717,7 @@ export const ResumePreview = memo(function ResumePreview({
         }
       } catch (primaryError) {
         console.warn('Primary download method failed, trying fallback:', primaryError);
-        
+
         // Fallback to direct API download
         const fallbackUrl = `/api/download-pdf`;
         const fallbackResponse = await fetch(fallbackUrl, {
@@ -734,7 +732,7 @@ export const ResumePreview = memo(function ResumePreview({
         if (fallbackResponse.ok) {
           const blob = await fallbackResponse.blob();
           const downloadUrl = URL.createObjectURL(blob);
-          
+
           const link = document.createElement('a');
           link.href = downloadUrl;
           link.download = `ats-optimized-resume-${new Date().toISOString().split('T')[0]}.pdf`;
@@ -742,24 +740,24 @@ export const ResumePreview = memo(function ResumePreview({
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
-          
+
           setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
-          
+
           toast({
             title: "Download Complete",
             description: "Your ATS-optimized resume has been downloaded successfully.",
           });
           return; // Success, exit function
         }
-        
+
         throw primaryError; // If fallback also fails, throw the original error
       }
-      
+
       throw new Error('PDF generation failed');
-      
+
     } catch (error) {
       console.error('Download error:', error);
-      
+
       const errorMessage = error instanceof Error ? error.message : 'Unknown download error';
       toast({
         title: "Download Failed",
@@ -767,9 +765,85 @@ export const ResumePreview = memo(function ResumePreview({
         variant: "destructive",
       });
     } finally {
+      clearTimeout(timeoutId);
       setIsDownloadingPdf(false);
     }
   }, [resumeId, accessToken, toast, isDownloadingPdf]);
+
+  // Function to handle generic file download from API
+  const handleApiDownload = useCallback(async (format: 'docx' | 'latex') => {
+    if (!resumeId) {
+      toast({
+        title: "Download failed",
+        description: `No resume ID available to download as ${format}.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsDownloadingPdf(true); // Use the same loading state for simplicity, might refine later
+
+    try {
+      toast({
+        title: `Generating ${format.toUpperCase()}...`,
+        description: `Your resume is being prepared for download as ${format}.`,
+      });
+
+      const response = await fetch(`/api/download-${format}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
+        },
+        body: JSON.stringify({ resumeId }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(`Download failed: ${errorData.error || response.statusText}`);
+      }
+
+      // Get filename from headers, fallback if not available
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let filename = `${resumePreviewData?.content?.name || 'resume'}.${format}`;
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+        if (filenameMatch && filenameMatch[1]) {
+          filename = filenameMatch[1];
+        }
+      }
+
+      const blob = await response.blob();
+      const downloadUrl = URL.createObjectURL(blob);
+
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = filename;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
+
+      toast({
+        title: "Download Complete",
+        description: `Your resume has been downloaded as ${format}.`,
+      });
+
+    } catch (error) {
+      console.error(`Download ${format} error:`, error);
+
+      const errorMessage = error instanceof Error ? error.message : 'Unknown download error';
+      toast({
+        title: "Download Failed",
+        description: `Could not download the resume as ${format}: ${errorMessage}`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  }, [resumeId, accessToken, toast, resumePreviewData?.content?.name]);
 
   // Load LaTeX PDF when component mounts and it's a LaTeX format
   useEffect(() => {
@@ -827,7 +901,7 @@ export const ResumePreview = memo(function ResumePreview({
             <Moon size={18} className="text-gray-500 dark:text-gray-400"/>
           </div>
 
-          {/* Download PDF Button */}
+          {/* Download Buttons */}
           {(resumePreviewData?.content || isLatexFormat) && (
             <>
               {isLatexFormat ? (
@@ -866,6 +940,34 @@ export const ResumePreview = memo(function ResumePreview({
                   </PDFDownloadLink>
                 )
               )}
+
+              {/* New DOCX Download Button */}
+              <Button
+                 className="flex items-center space-x-2"
+                 onClick={() => handleApiDownload('docx')}
+                 disabled={isDownloadingPdf} // Use same loading state for simplicity
+              >
+                {isDownloadingPdf ? (
+                   <Loader2 className="animate-spin" size={18} />
+                ) : (
+                   <FileText size={18} /> // Using FileText icon for generic document
+                )}
+                <span>Download DOCX</span>
+              </Button>
+
+              {/* New LaTeX (.tex) Download Button */}
+              <Button
+                 className="flex items-center space-x-2"
+                 onClick={() => handleApiDownload('latex')}
+                 disabled={isDownloadingPdf} // Use same loading state for simplicity
+              >
+                {isDownloadingPdf ? (
+                   <Loader2 className="animate-spin" size={18} />
+                ) : (
+                   <FileText size={18} /> // Using FileText icon for generic document
+                )}
+                <span>Download LaTeX (.tex)</span>
+              </Button>
             </>
           )}
         </div>

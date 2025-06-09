@@ -3,12 +3,12 @@ import { Document, Page, Text, View, StyleSheet, Font } from '@react-pdf/rendere
 // Define interfaces based on the potential JSON structures
 // Adding optional chaining for robustness
 
-interface Contact {
+export interface Contact {
   type?: string;
   value?: string;
 }
 
-interface EducationItem {
+export interface EducationItem {
   degree?: string;
   institution?: string;
   location?: string;
@@ -16,7 +16,7 @@ interface EducationItem {
   details?: string[];
 }
 
-interface ExperienceItem {
+export interface ExperienceItem {
   position?: string;
   company?: string;
   location?: string;
@@ -25,12 +25,12 @@ interface ExperienceItem {
   tags?: string[];
 }
 
-interface SkillsItem {
+export interface SkillsItem {
   category?: string;
   skills?: string[];
 }
 
-interface DesignProps {
+export interface DesignProps {
   typography?: {
     fontFamily?: string;
     fontSize?: number;
@@ -55,7 +55,7 @@ interface DesignProps {
 }
 
 // Define the structure for the nested Groq output
-interface NestedResumeData {
+export interface NestedResumeData {
   header?: {
     name?: string;
     title?: string;
@@ -77,7 +77,7 @@ interface NestedResumeData {
 }
 
 // Define the structure for the ResumePreviewData content field (old structure)
-interface OldResumeContent {
+export interface OldResumeContent {
   name?: string;
   title?: string;
   contact?: {
@@ -97,7 +97,7 @@ interface OldResumeContent {
 }
 
 // Define a combined interface to handle all potential input structures
-interface ResumeDataInput extends NestedResumeData {
+export interface ResumeDataInput extends NestedResumeData {
   // Add flat properties for backward compatibility with the old structure
   name?: string;
   title?: string;
