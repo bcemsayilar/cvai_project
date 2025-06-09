@@ -547,10 +547,12 @@ export default function ResumeEnhancer() {
 
         const result = await response.json()
         if (result.success && result.pdfBuffer) {
-          // Convert base64 to blob and download
+          // Convert base64 to blob and download using browser-native methods
           const base64Data = result.pdfBuffer.replace(/^data:application\/pdf;base64,/, '')
-          const binaryData = Buffer.from(base64Data, 'base64')
-          const pdfBlob = new Blob([binaryData], { type: 'application/pdf' })
+          const byteCharacters = atob(base64Data)
+          const byteNumbers = Array.from(byteCharacters, c => c.charCodeAt(0))
+          const byteArray = new Uint8Array(byteNumbers)
+          const pdfBlob = new Blob([byteArray], { type: 'application/pdf' })
           const downloadUrl = URL.createObjectURL(pdfBlob)
 
           const link = document.createElement('a')
@@ -692,7 +694,7 @@ export default function ResumeEnhancer() {
 
               <div className="space-y-8">
                 {/* File Upload */}
-                <div id="upload-section">
+                <div>
                   <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-3">1. Upload Your Resume</h3>
                   <FileUploader 
                     onFileUpload={handleFileUpload} 
