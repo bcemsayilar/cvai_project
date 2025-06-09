@@ -626,8 +626,6 @@ export const ResumePreview = memo(function ResumePreview({
         signal: controller.signal
       });
       
-      clearTimeout(timeoutId);
-      
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
         throw new Error(`LaTeX PDF generation failed: ${errorData.error || response.statusText}`);
@@ -640,7 +638,6 @@ export const ResumePreview = memo(function ResumePreview({
         throw new Error(result.error || 'PDF generation returned no data');
       }
     } catch (error) {
-      clearTimeout(timeoutId);
       console.error('Error loading LaTeX PDF preview:', error);
       
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -653,6 +650,7 @@ export const ResumePreview = memo(function ResumePreview({
       // Reset PDF URL on error
       setLatexPdfUrl(null);
     } finally {
+      clearTimeout(timeoutId);
       setIsLoadingLatexPdf(false);
     }
   }, [resumeId, isLatexFormat, toast, accessToken]);
