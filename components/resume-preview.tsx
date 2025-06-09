@@ -14,9 +14,6 @@ import { ResumePdfDocument } from "./resume-pdf-document"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { useAuth } from "@/contexts/auth-context"
 
-// Buffer polyfill for browser environment
-import { Buffer } from 'buffer';
-
 interface ATSScore {
   keywordMatch: number
   formatScore: number
@@ -607,6 +604,13 @@ export const ResumePreview = memo(function ResumePreview({
   // Function to load LaTeX PDF preview with proper error handling
   const loadLatexPdfPreview = useCallback(async () => {
     if (!resumeId || !isLatexFormat) return;
+    
+    // Check if we have a valid access token
+    if (!accessToken) {
+      console.log('No access token available, skipping LaTeX preview load');
+      return;
+    }
+    
     setIsLoadingLatexPdf(true);
     
     const controller = new AbortController();
@@ -617,7 +621,7 @@ export const ResumePreview = memo(function ResumePreview({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
+          'Authorization': `Bearer ${accessToken}`
         },
         body: JSON.stringify({
           resumeId,
@@ -627,6 +631,16 @@ export const ResumePreview = memo(function ResumePreview({
       });
       
       if (!response.ok) {
+        if (response.status === 401) {
+          console.warn('Authentication failed for LaTeX preview, token may have expired');
+          toast({
+            title: "Authentication Error",
+            description: "Please refresh the page and try again.",
+            variant: "destructive",
+          });
+          return;
+        }
+        
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
         throw new Error(`LaTeX PDF generation failed: ${errorData.error || response.statusText}`);
       }
@@ -640,12 +654,21 @@ export const ResumePreview = memo(function ResumePreview({
     } catch (error) {
       console.error('Error loading LaTeX PDF preview:', error);
       
+      if ((error as Error).name === 'AbortError') {
+        console.log('LaTeX preview request was aborted');
+        return;
+      }
+      
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      toast({
-        title: "Preview Error",
-        description: `Could not load LaTeX PDF preview: ${errorMessage}`,
-        variant: "destructive",
-      });
+      
+      // Don't show error toast for auth errors as we handle them above
+      if (!errorMessage.includes('Unauthorized')) {
+        toast({
+          title: "Preview Error",
+          description: `Could not load LaTeX PDF preview: ${errorMessage}`,
+          variant: "destructive",
+        });
+      }
       
       // Reset PDF URL on error
       setLatexPdfUrl(null);
@@ -692,8 +715,13 @@ export const ResumePreview = memo(function ResumePreview({
         if (result.success && result.pdfBuffer) {
           // Convert base64 to blob and download directly - no URL opening
           const base64Data = result.pdfBuffer.replace(/^data:application\/pdf;base64,/, '');
-          const binaryData = Buffer.from(base64Data, 'base64');
-          const pdfBlob = new Blob([binaryData], { type: 'application/pdf' });
+          
+          // Use browser-native methods instead of Node.js Buffer
+          const byteCharacters = atob(base64Data);
+          const byteNumbers = Array.from(byteCharacters, c => c.charCodeAt(0));
+          const byteArray = new Uint8Array(byteNumbers);
+          const pdfBlob = new Blob([byteArray], { type: 'application/pdf' });
+          
           const downloadUrl = URL.createObjectURL(pdfBlob);
 
           const link = document.createElement('a');
@@ -845,10 +873,15 @@ export const ResumePreview = memo(function ResumePreview({
 
   // Load LaTeX PDF when component mounts and it's a LaTeX format
   useEffect(() => {
-    if (isLatexFormat && resumeId) {
-      loadLatexPdfPreview();
+    if (isLatexFormat && resumeId && accessToken && !latexPdfUrl && !isLoadingLatexPdf) {
+      // Add a small delay to ensure auth state is stable
+      const timer = setTimeout(() => {
+        loadLatexPdfPreview();
+      }, 500);
+      
+      return () => clearTimeout(timer);
     }
-  }, [isLatexFormat, resumeId, loadLatexPdfPreview]);
+  }, [isLatexFormat, resumeId, accessToken, latexPdfUrl, isLoadingLatexPdf, loadLatexPdfPreview]);
 
   // Remove renderATSView function since ATS analysis is now standalone
 
