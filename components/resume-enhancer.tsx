@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Toggle } from "@/components/ui/toggle"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Loader2, Upload, Download, CheckCircle, Lock, Sparkles, FileText, AlertTriangle, Info } from "lucide-react"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
@@ -32,7 +33,7 @@ interface ATSScore {
 
 export default function ResumeEnhancer() {
   const { toast } = useToast()
-  const { user, profile, isLoading: isAuthLoading, createProfileIfMissing } = useAuth()
+  const { user, profile, session, isLoading: isAuthLoading, createProfileIfMissing } = useAuth()
   const [file, setFile] = useState<File | null>(null)
   const [resumeId, setResumeId] = useState<string | null>(null)
   const [filePath, setFilePath] = useState<string | null>(null)
@@ -56,6 +57,8 @@ export default function ResumeEnhancer() {
   const [atsScoreOriginal, setAtsScoreOriginal] = useState<ATSScore | null>(null)
   const [atsScoreEnhanced, setAtsScoreEnhanced] = useState<ATSScore | null>(null)
   const [isATSModalOpen, setIsATSModalOpen] = useState(false)
+  const [shouldResetFileUploader, setShouldResetFileUploader] = useState(false)
+  const [isResetConfirmDialogOpen, setIsResetConfirmDialogOpen] = useState(false)
   
   // Create supabase client with useRef to prevent recreation on every render
   const supabaseRef = useRef(createSupabaseClient())
@@ -63,6 +66,9 @@ export default function ResumeEnhancer() {
 
   // Debounce custom instructions to prevent excessive re-renders
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+  
+  // Auto-reset timer ref
+  const autoResetTimerRef = useRef<NodeJS.Timeout | null>(null)
   
   useEffect(() => {
     if (debounceTimerRef.current) {
@@ -134,6 +140,9 @@ export default function ResumeEnhancer() {
               title: "Resume enhanced successfully",
               description: "Your enhanced resume is ready to download",
             })
+            
+            // Start auto-reset timer for better UX
+            startAutoResetTimer()
           } else if (payload.new.status === "failed") {
             setIsProcessing(false)
             setProcessingError("Resume enhancement failed. Please try again.")
@@ -328,6 +337,9 @@ export default function ResumeEnhancer() {
                 title: "Resume enhanced successfully",
                 description: "Your enhanced resume is ready to download",
               })
+              
+              // Start auto-reset timer for better UX
+              startAutoResetTimer()
             } else if (data.status === "failed") {
               setIsProcessing(false)
               setProcessingError("Resume enhancement failed. Please try again.")
@@ -376,6 +388,88 @@ export default function ResumeEnhancer() {
     setAtsScoreOriginal(score)
   }
 
+  const resetUploadScreen = useCallback(() => {
+    // Reset all states to initial values for a fresh upload experience
+    setFile(null)
+    setResumeId(null)
+    setFilePath(null)
+    setIsComplete(false)
+    setIsProcessing(false)
+    setProcessedFilePath(null)
+    setProcessingError(null)
+    setAtsScoreOriginal(null)
+    setAtsScoreEnhanced(null)
+    
+    // Reset style selections to default
+    setSelectedStyles({
+      professional: true,
+      concise: false,
+      creative: false,
+      grammarFix: true,
+      styleOnly: false,
+    })
+    
+    // Reset format to default
+    setResumeFormat("visual")
+    
+    // Clear custom instructions
+    setCustomInstructions("")
+    setDebouncedCustomInstructions("")
+    
+    // Clear any auto-reset timer
+    if (autoResetTimerRef.current) {
+      clearTimeout(autoResetTimerRef.current)
+      autoResetTimerRef.current = null
+    }
+    
+    // Trigger FileUploader reset
+    setShouldResetFileUploader(true)
+    
+    // Close confirmation dialog
+    setIsResetConfirmDialogOpen(false)
+    
+    // Scroll to upload section for better UX
+    document.getElementById("upload-section")?.scrollIntoView({ behavior: "smooth" })
+    
+    toast({
+      title: "Ready for new upload",
+      description: "Upload screen has been reset for your next resume",
+    })
+  }, [toast])
+
+  const openResetConfirmDialog = useCallback(() => {
+    setIsResetConfirmDialogOpen(true)
+  }, [])
+
+  const handleFileUploaderResetComplete = useCallback(() => {
+    setShouldResetFileUploader(false)
+  }, [])
+
+  const startAutoResetTimer = useCallback(() => {
+    // Clear any existing timer
+    if (autoResetTimerRef.current) {
+      clearTimeout(autoResetTimerRef.current)
+    }
+    
+    // Set a timer to show auto-reset suggestion after 2 minutes
+    autoResetTimerRef.current = setTimeout(() => {
+      toast({
+        title: "Upload another resume?",
+        description: "Click 'Upload & Enhance Another Resume' button to start fresh",
+        duration: 10000, // Show for 10 seconds
+      })
+    }, 120000) // 2 minutes
+  }, [toast])
+
+  // Cleanup auto-reset timer on component unmount
+  useEffect(() => {
+    return () => {
+      if (autoResetTimerRef.current) {
+        clearTimeout(autoResetTimerRef.current)
+      }
+    }
+  }, [])
+
   const downloadResume = async (format: "txt") => {
     if (!processedFilePath || !resumeId || format !== "txt") return;
 
@@ -416,6 +510,110 @@ export default function ResumeEnhancer() {
       setIsDownloading(false);
     }
   };
+
+  // PDF download function for confirmation dialog
+  const downloadEnhancedPDF = useCallback(async () => {
+    if (!resumeId) {
+      toast({
+        title: "Download failed",
+        description: "No resume ID available for PDF download.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      toast({
+        title: "Generating PDF...",
+        description: "Your enhanced resume is being prepared for download.",
+      })
+
+      // Check if it's ATS format (LaTeX) or Visual format
+      if (resumeFormat === "ats") {
+        // For ATS format, use the latex-to-pdf API
+        const response = await fetch('/api/latex-to-pdf', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {})
+          },
+          body: JSON.stringify({ resumeId, isPreview: false }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+          throw new Error(`Download failed: ${errorData.error || response.statusText}`)
+        }
+
+        const result = await response.json()
+        if (result.success && result.pdfBuffer) {
+          // Convert base64 to blob and download
+          const base64Data = result.pdfBuffer.replace(/^data:application\/pdf;base64,/, '')
+          const binaryData = Buffer.from(base64Data, 'base64')
+          const pdfBlob = new Blob([binaryData], { type: 'application/pdf' })
+          const downloadUrl = URL.createObjectURL(pdfBlob)
+
+          const link = document.createElement('a')
+          link.href = downloadUrl
+          link.download = `enhanced-resume-${new Date().toISOString().split('T')[0]}.pdf`
+          link.style.display = 'none'
+          document.body.appendChild(link)
+          link.click()
+          document.body.removeChild(link)
+
+          setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000)
+
+          toast({
+            title: "Download Complete",
+            description: "Your enhanced resume has been downloaded successfully.",
+          })
+        } else {
+          throw new Error('PDF generation failed')
+        }
+      } else {
+        // For Visual format, use the download-pdf API
+        const response = await fetch('/api/download-pdf', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {})
+          },
+          body: JSON.stringify({ resumeId }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'PDF generation failed' }))
+          throw new Error(errorData.error)
+        }
+
+        const blob = await response.blob()
+        const downloadUrl = URL.createObjectURL(blob)
+
+        const link = document.createElement('a')
+        link.href = downloadUrl
+        link.download = `enhanced-resume-${new Date().toISOString().split('T')[0]}.pdf`
+        link.style.display = 'none'
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+
+        setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000)
+
+        toast({
+          title: "Download Complete",
+          description: "Your enhanced resume has been downloaded successfully.",
+        })
+      }
+    } catch (error) {
+      console.error('PDF download error:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown download error'
+      toast({
+        title: "Download Failed",
+        description: `Could not download the enhanced resume: ${errorMessage}`,
+        variant: "destructive",
+      })
+    }
+  }, [resumeId, resumeFormat, session?.access_token, toast])
 
   // Check if user is on trial plan
   const isTrialUser = profile?.subscription_type === "trial"
@@ -494,9 +692,14 @@ export default function ResumeEnhancer() {
 
               <div className="space-y-8">
                 {/* File Upload */}
-                <div>
+                <div id="upload-section">
                   <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-3">1. Upload Your Resume</h3>
-                  <FileUploader onFileUpload={handleFileUpload} file={file} />
+                  <FileUploader 
+                    onFileUpload={handleFileUpload} 
+                    file={file} 
+                    shouldReset={shouldResetFileUploader}
+                    onResetComplete={handleFileUploaderResetComplete}
+                  />
                 </div>
 
                 {/* Resume Format Selection */}
@@ -623,14 +826,19 @@ export default function ResumeEnhancer() {
                     <div className="space-y-4">
                       <Button
                         onClick={processResume}
-                        disabled={isProcessing || (profile?.resumes_used ?? 0) >= (profile?.resumes_limit ?? 0)}
-                        className="w-full bg-teal-600 hover:bg-teal-700 text-white"
+                        disabled={isProcessing || isComplete || (profile?.resumes_used ?? 0) >= (profile?.resumes_limit ?? 0)}
+                        className={`w-full ${isComplete ? 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed' : 'bg-teal-600 hover:bg-teal-700'} text-white`}
                         size="lg"
                       >
                         {isProcessing ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             Processing...
+                          </>
+                        ) : isComplete ? (
+                          <>
+                            <CheckCircle className="mr-2 h-4 w-4" />
+                            Enhancement Complete
                           </>
                         ) : (
                           <>
@@ -639,6 +847,19 @@ export default function ResumeEnhancer() {
                           </>
                         )}
                       </Button>
+
+                      {/* Reset Button - Only show when enhancement is complete */}
+                      {isComplete && (
+                        <Button
+                          onClick={openResetConfirmDialog}
+                          variant="outline"
+                          className="w-full border-teal-200 dark:border-teal-800 hover:bg-teal-50 dark:hover:bg-teal-950 hover:border-teal-300 dark:hover:border-teal-700 text-teal-700 dark:text-teal-300"
+                          size="lg"
+                        >
+                          <Upload className="mr-2 h-4 w-4" />
+                          Upload & Enhance Another Resume
+                        </Button>
+                      )}
 
                       <Button
                         onClick={openATSAnalyzer}
@@ -751,6 +972,19 @@ export default function ResumeEnhancer() {
                 </div>
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Your Enhanced Resume is Ready!</h2>
                 <p className="text-gray-500 dark:text-gray-400 mt-2">Review the improvements below and download your enhanced resume.</p>
+                
+                {/* Reset Button for New Upload */}
+                <div className="mt-6">
+                  <Button
+                    onClick={openResetConfirmDialog}
+                    variant="outline"
+                    className="border-teal-200 dark:border-teal-800 hover:bg-teal-50 dark:hover:bg-teal-950 hover:border-teal-300 dark:hover:border-teal-700 text-teal-700 dark:text-teal-300"
+                    size="lg"
+                  >
+                    <Upload className="mr-2 h-4 w-4" />
+                    Upload & Enhance Another Resume
+                  </Button>
+                </div>
               </div>
 
               {/* ATS Score Display */}
@@ -962,6 +1196,48 @@ export default function ResumeEnhancer() {
         filePath={filePath}
         onAnalysisComplete={handleATSAnalysisComplete}
       />
+
+      {/* Reset Confirmation Dialog */}
+      <Dialog open={isResetConfirmDialogOpen} onOpenChange={setIsResetConfirmDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Don't forget your enhanced resume!
+            </DialogTitle>
+            <DialogDescription className="text-gray-600 dark:text-gray-400">
+              Make sure to download your enhanced resume before uploading a new one. 
+              You'll lose access to this enhanced version once you start a new enhancement.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 mt-4">
+            <Button
+              onClick={downloadEnhancedPDF}
+              className="w-full bg-teal-600 hover:bg-teal-700 text-white"
+              size="lg"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Download Enhanced Resume First
+            </Button>
+          </div>
+          <DialogFooter className="gap-2 mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setIsResetConfirmDialogOpen(false)}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={resetUploadScreen}
+              variant="destructive"
+              className="flex-1"
+            >
+              Continue Without Download
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
