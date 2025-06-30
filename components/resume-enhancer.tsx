@@ -617,8 +617,8 @@ export default function ResumeEnhancer() {
     }
   }, [resumeId, resumeFormat, session?.access_token, toast])
 
-  // Check if user is on trial plan
-  const isTrialUser = profile?.subscription_type === "trial"
+  // Check if user has premium access (monthly or annual subscription)
+  const isPremium = profile?.subscription_type === "monthly" || profile?.subscription_type === "annual"
 
   // Memoize ResumePreview props to prevent unnecessary re-renders
   const resumePreviewProps = useMemo(() => ({
@@ -626,8 +626,9 @@ export default function ResumeEnhancer() {
     originalPath: filePath,
     processedPath: processedFilePath,
     atsScoreOriginal,
-    atsScoreEnhanced
-  }), [resumeId, filePath, processedFilePath, atsScoreOriginal, atsScoreEnhanced])
+    atsScoreEnhanced,
+    isPremium
+  }), [resumeId, filePath, processedFilePath, atsScoreOriginal, atsScoreEnhanced, isPremium])
 
   // Callback for handling custom instructions change
   const handleCustomInstructionsChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {

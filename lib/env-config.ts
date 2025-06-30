@@ -71,6 +71,11 @@ export const envConfig = {
     return key;
   },
 
+  // Alias for getAnonKey for backward compatibility
+  getSupabaseAnonKey: (): string => {
+    return envConfig.getAnonKey();
+  },
+
   // Get service role key (server-side only)
   getServiceRoleKey: (): string => {
     if (typeof window !== 'undefined') {
@@ -99,8 +104,12 @@ export const envConfig = {
       throw new Error('UPSTASH_REDIS_REST_TOKEN is required for Redis operations');
     }
 
+    if (!url) {
+      throw new Error('UPSTASH_REDIS_REST_URL is required for Redis operations');
+    }
+
     return {
-      url: url || 'https://harmless-clam-14858.upstash.io',
+      url,
       token
     };
   },

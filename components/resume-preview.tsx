@@ -3,7 +3,8 @@ import { useState, useEffect, useRef, useMemo, memo, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { AlertTriangle, Download, FileText, Loader2, Moon, Sun, BarChart3 } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { AlertTriangle, Download, FileText, Loader2, Moon, Sun, BarChart3, Edit3 } from "lucide-react"
 import { createSupabaseClient } from "@/lib/supabase"
 import { useToast } from "@/components/ui/use-toast"
 import { Switch } from "@/components/ui/switch"
@@ -12,6 +13,7 @@ import { ATSScoreDisplay } from "./ats-score-display"
 import { ResumePdfDocument } from "./resume-pdf-document"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { useAuth } from "@/contexts/auth-context"
+import { ResumeEditor } from "./resume-editor"
 
 interface ATSScore {
   keywordMatch: number
@@ -32,6 +34,9 @@ interface ResumePreviewProps {
   processedPath?: string | null
   atsScoreOriginal?: ATSScore | null
   atsScoreEnhanced?: ATSScore | null
+  editorMode?: boolean // NEW: Enable editing for premium users
+  onDataChange?: (data: ResumeContent) => void // NEW: Handle changes
+  isPremium?: boolean // NEW: Check if user has premium access
 }
 
 export interface ResumeContent {
@@ -178,7 +183,10 @@ export const ResumePreview = memo(function ResumePreview({
   originalPath, 
   processedPath, 
   atsScoreOriginal: propAtsScoreOriginal, 
-  atsScoreEnhanced: propAtsScoreEnhanced 
+  atsScoreEnhanced: propAtsScoreEnhanced,
+  editorMode, // NEW: Get editor mode prop
+  onDataChange, // NEW: Get onDataChange prop
+  isPremium // NEW: Get isPremium prop
 }: ResumePreviewProps) {
   // State definitions
   const [originalResume, setOriginalResume] = useState<string>("")
@@ -192,6 +200,10 @@ export const ResumePreview = memo(function ResumePreview({
   const [latexPdfUrl, setLatexPdfUrl] = useState<string | null>(null)
   const [isLoadingLatexPdf, setIsLoadingLatexPdf] = useState<boolean>(false)
   const [isDownloadingPdf, setIsDownloadingPdf] = useState<boolean>(false)
+  const [showEditor, setShowEditor] = useState<boolean>(false) // NEW: Control editor visibility
+  const [previewUpdateKey, setPreviewUpdateKey] = useState(0)
+  const [latexRetryCount, setLatexRetryCount] = useState(0)
+  const MAX_LATEX_RETRIES = 2
   
   // Persist LaTeX PDF URL in sessionStorage to prevent loss on navigation
   useEffect(() => {
@@ -313,33 +325,86 @@ export const ResumePreview = memo(function ResumePreview({
             setLatexPdfUrl(cachedPdfUrl);
           }
           
-          // For LaTeX format, we'll display it properly using the LaTeX-to-PDF API
-          // Set a placeholder that indicates this is a LaTeX resume
-          setResumePreviewData({ 
-            content: {
-              name: "ATS-Optimized Resume",
-              title: "LaTeX format detected - generating preview...",
-              contact: {},
-              experience: [],
-              education: [],
-              skills: []
-            },
-            design: {
-              layout: "modern",
-              colorScheme: {
-                background: "#ffffff",
-                textPrimary: "#000000",
-                textSecondary: "#666666",
-                accent: "#000000"
-              },
-              typography: {
-                headingFont: "Arial",
-                bodyFont: "Arial",
-                headingSize: "16px",
-                bodySize: "12px"
-              }
+          // For LaTeX format, try to use the JSON data if available for editing
+          if (isValidPreviewJson(previewJson)) {
+            const content = (previewJson as any).content || previewJson;
+            const design = (previewJson as any).design;
+
+            if (content) {
+              setResumePreviewData({
+                content: content as ResumeContent,
+                design: design as ResumeDesign || {
+                  layout: "modern",
+                  colorScheme: {
+                    background: "#ffffff",
+                    textPrimary: "#000000", 
+                    textSecondary: "#666666",
+                    accent: "#000000"
+                  },
+                  typography: {
+                    headingFont: "Arial",
+                    bodyFont: "Arial",
+                    headingSize: "16px",
+                    bodySize: "12px"
+                  }
+                }
+              });
+            } else {
+              // Fallback for LaTeX without JSON data
+              setResumePreviewData({ 
+                content: {
+                  name: "ATS-Optimized Resume",
+                  title: "LaTeX format detected - generating preview...",
+                  contact: {},
+                  experience: [],
+                  education: [],
+                  skills: []
+                },
+                design: {
+                  layout: "modern",
+                  colorScheme: {
+                    background: "#ffffff",
+                    textPrimary: "#000000",
+                    textSecondary: "#666666",
+                    accent: "#000000"
+                  },
+                  typography: {
+                    headingFont: "Arial",
+                    bodyFont: "Arial",
+                    headingSize: "16px",
+                    bodySize: "12px"
+                  }
+                }
+              });
             }
-          });
+          } else {
+            // Fallback for LaTeX without JSON data
+            setResumePreviewData({ 
+              content: {
+                name: "ATS-Optimized Resume",
+                title: "LaTeX format detected - generating preview...",
+                contact: {},
+                experience: [],
+                education: [],
+                skills: []
+              },
+              design: {
+                layout: "modern",
+                colorScheme: {
+                  background: "#ffffff",
+                  textPrimary: "#000000",
+                  textSecondary: "#666666",
+                  accent: "#000000"
+                },
+                typography: {
+                  headingFont: "Arial",
+                  bodyFont: "Arial",
+                  headingSize: "16px",
+                  bodySize: "12px"
+                }
+              }
+            });
+          }
         } else {
           setIsLatexFormat(false);
         }
@@ -445,27 +510,6 @@ export const ResumePreview = memo(function ResumePreview({
     }
   };
 
-  // Memoize the PDF document with deeper dependency checking to prevent unnecessary re-renders
-  const pdfDocument = useMemo(() => {
-    if (!resumePreviewData?.content) return null;
-    
-    // Transform the design from ResumeDesign to DesignProps format
-    const transformedResumeData = {
-      content: resumePreviewData.content,
-      design: resumePreviewData.design ? transformResumeDesignToDesignProps(resumePreviewData.design) : undefined
-    };
-    
-    return <ResumePdfDocument resumeData={transformedResumeData} mode={isDarkMode ? 'dark' : 'light'} />;
-  }, [
-    resumePreviewData?.content?.name,
-    resumePreviewData?.content?.title, 
-    resumePreviewData?.content?.experience,
-    resumePreviewData?.content?.education,
-    resumePreviewData?.content?.skills,
-    resumePreviewData?.design,
-    isDarkMode
-  ]);
-
   // Memoize the download document separately to avoid re-creating for downloads
   const downloadDocument = useMemo(() => {
     if (!resumePreviewData?.content) return null;
@@ -497,6 +541,8 @@ export const ResumePreview = memo(function ResumePreview({
   }, []);
 
   const renderResumePreview = () => {
+    console.log('renderResumePreview called. Current resumePreviewData?.content?.name:', resumePreviewData?.content?.name);
+
      // For LaTeX format, show the actual LaTeX-compiled PDF
      if (isLatexFormat) {
        if (isLoadingLatexPdf) {
@@ -533,6 +579,7 @@ export const ResumePreview = memo(function ResumePreview({
                  className="w-full h-full min-h-[520px]"
                  title="ATS-Optimized Resume Preview"
                  style={{ border: 'none' }}
+                 key={`latex-pdf-iframe-${resumeId}-${previewUpdateKey}`}
                />
              </div>
            </div>
@@ -565,10 +612,15 @@ export const ResumePreview = memo(function ResumePreview({
         return <p>No preview data available.</p>;
      }
 
+     // Transform the design from ResumeDesign to DesignProps format directly here
+     const transformedPreviewData = {
+      content: resumePreviewData.content,
+      design: resumePreviewData.design ? transformResumeDesignToDesignProps(resumePreviewData.design) : undefined
+     };
+
      // Use PDFViewer to display the ResumePdfDocument component with proper sizing
-    if (pdfDocument) {
-      return (
-           <div className="w-full" style={{ height: '80vh', minHeight: '600px' }}>
+     return (
+           <div className="w-full resume-preview-container" style={{ height: '80vh', minHeight: '600px' }}>
              <PDFViewer 
                width="100%"
                height="100%"
@@ -577,27 +629,12 @@ export const ResumePreview = memo(function ResumePreview({
                  height: '80vh',
                  minHeight: '600px'
                }}
-               key={`pdf-viewer-${resumeId}-${isDarkMode}`}
+               key={`pdf-viewer-${resumeId}-${isDarkMode}-${previewUpdateKey}`}
              >
-               {pdfDocument}
+               <ResumePdfDocument resumeData={transformedPreviewData} mode={isDarkMode ? 'dark' : 'light'} />
              </PDFViewer>
               </div>
        );
-    }
-    
-    return (
-      <div className="flex items-center justify-center h-full min-h-[400px] p-8">
-        <div className="text-center space-y-4 max-w-md">
-          <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto">
-            <FileText className="w-8 h-8 text-gray-600 dark:text-gray-400" />
-          </div>
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white">No Preview Available</h3>
-          <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed">
-            Unable to generate PDF preview. Please check your resume data.
-          </p>
-        </div>
-      </div>
-    );
   };
 
   // Function to load LaTeX PDF preview with proper error handling
@@ -607,6 +644,12 @@ export const ResumePreview = memo(function ResumePreview({
     // Check if we have a valid access token
     if (!accessToken) {
       console.log('No access token available, skipping LaTeX preview load');
+      return;
+    }
+    
+    // Prevent multiple simultaneous requests and check retry limit
+    if (isLoadingLatexPdf || latexRetryCount >= MAX_LATEX_RETRIES) {
+      console.log('Skipping LaTeX preview load - already loading or max retries reached');
       return;
     }
     
@@ -647,6 +690,8 @@ export const ResumePreview = memo(function ResumePreview({
       const result = await response.json();
       if (result.success && result.pdfData) {
         setLatexPdfUrl(result.pdfData);
+        // Reset retry count on success
+        setLatexRetryCount(0);
       } else {
         throw new Error(result.error || 'PDF generation returned no data');
       }
@@ -660,11 +705,14 @@ export const ResumePreview = memo(function ResumePreview({
       
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       
-      // Don't show error toast for auth errors as we handle them above
-      if (!errorMessage.includes('Unauthorized')) {
+      // Increment retry count
+      setLatexRetryCount(prev => prev + 1);
+      
+      // Only show error toast if we've reached max retries
+      if (latexRetryCount >= MAX_LATEX_RETRIES - 1) {
         toast({
           title: "Preview Error",
-          description: `Could not load LaTeX PDF preview: ${errorMessage}`,
+          description: `Could not load LaTeX PDF preview after ${MAX_LATEX_RETRIES} attempts. Please try again later.`,
           variant: "destructive",
         });
       }
@@ -675,7 +723,7 @@ export const ResumePreview = memo(function ResumePreview({
       clearTimeout(timeoutId);
       setIsLoadingLatexPdf(false);
     }
-  }, [resumeId, isLatexFormat, toast, accessToken]);
+  }, [resumeId, isLatexFormat, toast, accessToken, latexRetryCount]);
 
   // Handle ATS PDF download with proper error handling
   const handleATSPdfDownload = useCallback(async () => {
@@ -870,17 +918,95 @@ export const ResumePreview = memo(function ResumePreview({
     }
   }, [resumeId, accessToken, toast, resumePreviewData?.content?.name]);
 
+  // Handle editor save functionality
+  const handleEditorSave = useCallback(async (updatedData: ResumeContent) => {
+    if (!resumeId || !accessToken) {
+      toast({
+        title: "Save failed",
+        description: "Authentication required to save changes.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/update-resume', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({
+          resumeId,
+          updatedContent: updatedData
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(`Save failed: ${errorData.error || response.statusText}`);
+      }
+
+      const result = await response.json();
+
+      // Update local state with the saved data
+      setResumePreviewData(prev => {
+        if (!prev) return null;
+        return {
+          content: updatedData,
+          design: prev.design
+        };
+      });
+      console.log('ResumePreview: resumePreviewData updated, new name:', updatedData.name);
+
+      // Force preview update
+      setPreviewUpdateKey(prev => prev + 1);
+
+      onDataChange?.(updatedData);
+
+      // For LaTeX format, handle PDF regeneration
+      if (isLatexFormat && resumeId) {
+        sessionStorage.removeItem(`latex-pdf-${resumeId}`);
+        setLatexPdfUrl(null);
+        // Reset retry count before new attempt
+        setLatexRetryCount(0);
+        
+        // No need for a setTimeout here, the useEffect below will trigger it.
+        loadLatexPdfPreview();
+      }
+
+      toast({
+        title: "Changes saved",
+        description: isLatexFormat 
+          ? "Your ATS resume has been updated. PDF preview will be generated shortly."
+          : "Your resume has been updated successfully.",
+      });
+
+      // Close editor after successful save
+      setShowEditor(false);
+
+    } catch (error) {
+      console.error('Save error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown save error';
+      toast({
+        title: "Save failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    }
+  }, [resumeId, accessToken, toast, onDataChange, isLatexFormat, loadLatexPdfPreview]);
+
   // Load LaTeX PDF when component mounts and it's a LaTeX format
   useEffect(() => {
-    if (isLatexFormat && resumeId && accessToken && !latexPdfUrl && !isLoadingLatexPdf) {
+    if (isLatexFormat && resumeId && accessToken && !latexPdfUrl && !isLoadingLatexPdf && latexRetryCount < MAX_LATEX_RETRIES) {
       // Add a small delay to ensure auth state is stable
       const timer = setTimeout(() => {
         loadLatexPdfPreview();
-      }, 500);
+      }, 1000);
       
       return () => clearTimeout(timer);
     }
-  }, [isLatexFormat, resumeId, accessToken, latexPdfUrl, isLoadingLatexPdf, loadLatexPdfPreview]);
+  }, [isLatexFormat, resumeId, accessToken, latexPdfUrl, isLoadingLatexPdf, loadLatexPdfPreview, latexRetryCount]);
 
   // Remove renderATSView function since ATS analysis is now standalone
 
@@ -922,6 +1048,23 @@ export const ResumePreview = memo(function ResumePreview({
                 />
               </DialogContent>
             </Dialog>
+          )}
+
+          {/* Edit Button - Premium Feature */}
+          {isPremium && resumePreviewData?.content && (
+            <Button 
+              onClick={() => setShowEditor(!showEditor)}
+              variant={showEditor ? "default" : "outline"} 
+              className="flex items-center space-x-2 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+            >
+              <Edit3 size={18} />
+              <span>{showEditor ? 'Close Editor' : 'Edit Resume'}</span>
+              {isLatexFormat && (
+                <Badge variant="secondary" className="ml-1 text-xs">
+                  ATS
+                </Badge>
+              )}
+            </Button>
           )}
 
           {/* Dark Mode Toggle */}
@@ -1003,23 +1146,94 @@ export const ResumePreview = memo(function ResumePreview({
         </div>
       </div>
       
-      <div className="flex-grow overflow-hidden" style={{ minHeight: '700px' }}>
-        <div className="h-full overflow-y-auto">
-          {isLoading ? (
-            <div className="space-y-4 p-4">
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-6 w-3/4" />
-              <Skeleton className="h-6 w-1/2" />
-              <Skeleton className="h-40 w-full" />
-              <Skeleton className="h-40 w-full" />
+      {/* Side-by-side layout: Editor + Preview */}
+      {isPremium && resumePreviewData?.content && showEditor ? (
+        <div className="flex h-full">
+          {/* Editor Panel - Left Side */}
+          <div className="w-1/2 border-r dark:border-gray-700 overflow-y-auto" style={{ maxHeight: '80vh' }}>
+            <div className="p-4">
+              <ResumeEditor 
+                initialData={resumePreviewData.content} 
+                onSave={handleEditorSave}
+                onError={(error) => {
+                  setResumePreviewError(error);
+                }}
+              />
             </div>
-          ) : (
-            <div className="h-full">
-              {renderResumePreview()}
+          </div>
+          
+          {/* Preview Panel - Right Side */}
+          <div className="w-1/2 overflow-y-auto" style={{ maxHeight: '80vh' }}>
+            <div className="p-4">
+              {isLoading ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-6 w-3/4" />
+                  <Skeleton className="h-6 w-1/2" />
+                  <Skeleton className="h-40 w-full" />
+                  <Skeleton className="h-40 w-full" />
+                </div>
+              ) : (
+                <div className="h-full">
+                  {renderResumePreview()}
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
-      </div>
+      ) : (
+        // Full width preview when editor is closed
+        <div className="flex-grow overflow-hidden" style={{ minHeight: '700px' }}>
+          <div className="h-full overflow-y-auto">
+            {isLoading ? (
+              <div className="space-y-4 p-4">
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-6 w-3/4" />
+                <Skeleton className="h-6 w-1/2" />
+                <Skeleton className="h-40 w-full" />
+                <Skeleton className="h-40 w-full" />
+              </div>
+            ) : (
+              <div className="h-full">
+                {renderResumePreview()}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Show upgrade prompt for non-premium users */}
+      {!isPremium && editorMode && (
+        <div className="p-4 border-t dark:border-gray-700 bg-gradient-to-r from-teal-50 to-blue-50 dark:from-teal-900/20 dark:to-blue-900/20">
+          <div className="text-center space-y-3">
+            <div className="flex items-center justify-center space-x-2">
+              <Edit3 className="w-5 h-5 text-teal-600 dark:text-teal-400" />
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                Premium Feature: Visual Resume Editor
+              </h3>
+            </div>
+            <p className="text-gray-600 dark:text-gray-400 text-sm max-w-2xl mx-auto">
+              Upgrade to a premium plan to access our intuitive visual editor. Make changes to your resume sections, 
+              add new experiences, edit skills, and see changes reflected in real-time without dealing with LaTeX syntax.
+            </p>
+            <div className="flex justify-center space-x-3">
+              <Button 
+                variant="outline" 
+                onClick={() => window.location.href = '#pricing'}
+                className="text-teal-600 border-teal-200 hover:bg-teal-50 dark:text-teal-400 dark:border-teal-700 dark:hover:bg-teal-900/20"
+              >
+                View Pricing
+              </Button>
+              <Button 
+                onClick={() => window.location.href = '#pricing'}
+                className="bg-teal-600 hover:bg-teal-700 text-white"
+              >
+                Upgrade Now
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </Card>
   )
 })

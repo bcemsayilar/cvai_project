@@ -3,6 +3,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Groq } from "https://esm.sh/groq-sdk";
 import { create } from "https://deno.land/x/djwt@v3.0.1/mod.ts";
+import { generateATSLatexResume } from "./latex-generator-edge.ts";
 
 interface ATSCriteria {
   keywordMatch: number;
@@ -503,10 +504,17 @@ CRITICAL REQUIREMENTS - FOLLOW EXACTLY:
 WRONG EXAMPLES - NEVER DO THIS:
 "linkedin": "linkedin.com/in/incomplete" // LinkedIn link is incomplete
 "github": "github.com/user" /* incomplete URL */
+"value": "linkedin.com" // LinkedIn link not provided
+"value": "github.com" // GitHub link not provided
 
 CORRECT EXAMPLES - DO THIS INSTEAD:
 "linkedin": "linkedin.com/in/not-provided"
 "github": "Not provided"
+"value": "Not provided"
+"value": ""
+
+REMEMBER: Every single character in your response must be valid JSON. No exceptions.
+Comments will break the parser and cause system errors. Use descriptive placeholder values instead.
 
 For missing information, use empty strings ("") for text fields or empty arrays ([]) for array fields.
 Output ONLY the raw JSON object that can be parsed directly with JSON.parse().`;
@@ -545,19 +553,31 @@ Output ONLY the raw JSON object that can be parsed directly with JSON.parse().`;
           
           // Enhanced JSON cleaning to remove any comments and invalid syntax
           let cleanJson = jsonMatch[0]
-            // Remove single-line comments (// anything)
-            .replace(/\/\/.*$/gm, '')
-            // Remove multi-line comments (/* anything */)
+            // Remove single-line comments after string values specifically
+            .replace(/("value":\s*"[^"]*")\s*\/\/[^\n\r]*/g, '$1')
+            // Remove single-line comments after other properties
+            .replace(/("[^"]*":\s*"[^"]*")\s*\/\/[^\n\r]*/g, '$1')
+            // Remove single-line comments on their own lines
+            .replace(/^\s*\/\/.*$/gm, '')
+            // Remove multi-line comments
             .replace(/\/\*[\s\S]*?\*\//g, '')
-            // Remove any trailing commas before closing brackets/braces
+            // Clean up any trailing commas before closing brackets/braces
             .replace(/,(\s*[}\]])/g, '$1')
-            // Remove any lines that look like comments but without //
-            .replace(/^\s*[^"{\[\s].*$/gm, '')
             // Clean up any extra whitespace and newlines
             .replace(/\n\s*\n/g, '\n')
             .trim();
             
           console.log("Cleaned JSON preview:", cleanJson.substring(0, 200) + "...");
+          
+          // Final safety check: Look for any remaining comment patterns
+          if (cleanJson.includes('//') || cleanJson.includes('/*')) {
+            console.warn("Found remaining comments in JSON, applying final cleanup...");
+            cleanJson = cleanJson
+              .replace(/("value":\s*"[^"]*")\s*\/\/[^\n\r]*/g, '$1')
+              .replace(/("[^"]*":\s*"[^"]*")\s*\/\/[^\n\r]*/g, '$1')
+              .replace(/\s*\/\/[^\n\r]*[\n\r]*/g, '\n')
+              .replace(/\s*\/\*[\s\S]*?\*\/\s*/g, ' ');
+          }
           
           // Additional fallback: try to fix common patterns that cause JSON parsing errors
           try {
@@ -567,12 +587,13 @@ Output ONLY the raw JSON object that can be parsed directly with JSON.parse().`;
             
             // Try more aggressive cleaning for specific patterns
             cleanJson = cleanJson
-              // Remove lines that contain "// " even if they're within strings incorrectly
-              .replace(/.*\/\/.*\n/g, '')
-              // Fix broken string values that might have comments
-              .replace(/"([^"]*?)\/\/[^"]*"/g, '"$1"')
+              // Remove single-line comments after string values specifically
+              .replace(/("value":\s*"[^"]*")\s*\/\/[^\n\r]*/g, '$1')
+              // Remove single-line comments after other properties
+              .replace(/("[^"]*":\s*"[^"]*")\s*\/\/[^\n\r]*/g, '$1')
               // Remove any remaining comment-like patterns
               .replace(/\s*\/\/[^\n]*\n/g, '\n')
+              .replace(/\s*\/\/[^\n]*$/g, '')
               // Clean up malformed JSON structures
               .replace(/,\s*}/g, '}')
               .replace(/,\s*]/g, ']');
@@ -589,7 +610,6 @@ Output ONLY the raw JSON object that can be parsed directly with JSON.parse().`;
         }
 
         // Generate LaTeX content using the shared latex-generator
-        const { generateATSLatexResume } = await import("./latex-generator-edge.ts");
         const latexContent = generateATSLatexResume(atsResumeData);
         
         // Create processed file path for LaTeX
@@ -695,12 +715,13 @@ Output ONLY the raw JSON object that can be parsed directly with JSON.parse().`;
           };
         }
 
-        // Update database with LaTeX file path and ATS scores
+        // Update database with LaTeX file path, JSON data, and ATS scores
         const { error: updateError } = await supabaseClient
           .from("resumes")
           .update({
             status: "completed",
             processed_file_path: latexFileName, // Store LaTeX file path
+            resume_preview_json: atsResumeData, // Store JSON data for editing
             ats_score_original: originalATSScore,
             ats_score_enhanced: enhancedATSScore,
             updated_at: new Date().toISOString()

@@ -143,6 +143,22 @@ export function PricingSection() {
                 </div>
                 <p className="ml-3 text-sm text-gray-700 dark:text-gray-300">Resume history & storage</p>
               </li>
+              <li className="flex items-start">
+                <div className="flex-shrink-0">
+                  <svg
+                    className="h-5 w-5 text-green-500 dark:text-green-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                  </svg>
+                </div>
+                <p className="ml-3 text-sm text-gray-700 dark:text-gray-300">
+                  <span className="font-medium text-teal-600 dark:text-teal-400">NEW:</span> Visual resume editor
+                </p>
+              </li>
             </ul>
 
             <div className="mt-8">
@@ -236,6 +252,22 @@ export function PricingSection() {
                   </svg>
                 </div>
                 <p className="ml-3 text-sm text-gray-700 dark:text-gray-300">Priority support</p>
+              </li>
+              <li className="flex items-start">
+                <div className="flex-shrink-0">
+                  <svg
+                    className="h-5 w-5 text-green-500 dark:text-green-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                  </svg>
+                </div>
+                <p className="ml-3 text-sm text-gray-700 dark:text-gray-300">
+                  <span className="font-medium text-gray-800 dark:text-gray-200">NEW:</span> Visual resume editor
+                </p>
               </li>
             </ul>
 
