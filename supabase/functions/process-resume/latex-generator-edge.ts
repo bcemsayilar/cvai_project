@@ -46,6 +46,7 @@ export function generateATSLatexResume(data: ResumeData): string {
 
   // Build contact information line
   const contactInfo = (contacts ?? [])
+    .filter(c => c.value && c.value.trim()) // Filter out empty contacts
     .map(c => escapeLaTeX(c.value))
      .join(' $\\cdot$ ');
 
@@ -121,7 +122,7 @@ export function generateATSLatexResume(data: ResumeData): string {
 \\vspace*{-10pt}
 \\begin{center}
 \t{\\Huge \\scshape {${escapeLaTeX(name)}}}\\\\
-\t${location ? escapeLaTeX(location) + ' $\\cdot$ ' : ''}${contactInfo}\\\\
+\t${(location || contactInfo) ? `${location ? escapeLaTeX(location) : ''}${location && contactInfo ? ' $\\cdot$ ' : ''}${contactInfo}\\\\` : ''}
 \\end{center}
 
 ${title ? `\\header{Profile}\n${escapeLaTeX(title)}\\\\
@@ -187,44 +188,29 @@ ${escapeLaTeX(description)}${technologies && technologies.length > 0
 function escapeLaTeX(text: string): string {
   if (!text) return '';
   
-  // First sanitize the input to remove dangerous patterns
-  let sanitized = text
-    // Remove potential command injections
-    .replace(/\\(input|include|write|immediate|openout|closeout|read|openin|closein|csname|expandafter|noexpand|shell|system|def|let|gdef|xdef|catcode|end|begin)\b/gi, '')
-    // Remove file operations and system commands
-    .replace(/\\(documentclass|usepackage|newcommand|renewcommand|newenvironment|renewenvironment)\b/gi, '')
-    // Remove dangerous control sequences
-    .replace(/\\[a-zA-Z@]+/g, match => {
-      // Allow only safe LaTeX commands
-      const safeCommands = ['textbf', 'textit', 'emph', 'underline', 'item', 'hfill', 'vspace', 'newline'];
-      const command = match.slice(1); // Remove the backslash
-      return safeCommands.includes(command) ? match : '';
-    })
-    // Remove any remaining backslash sequences that could be dangerous
-    .replace(/\\./g, match => {
-      // Only allow specific escaped characters
-      const allowedEscapes = ['\\\\', '\\ ', '\\n', '\\t'];
-      return allowedEscapes.includes(match) ? match : '';
-    });
-  
-  // Then escape special LaTeX characters
-  return sanitized
-    .replace(/\\/g, '\\textbackslash{}')
-    .replace(/\{/g, '\\{')
-    .replace(/\}/g, '\\}')
-    .replace(/\$/g, '\\$')
+  // Escape known LaTeX special characters
+  let escaped = text
+    .replace(/\\/g, '\\textbackslash{}') // Escape backslash first
     .replace(/&/g, '\\&')
     .replace(/%/g, '\\%')
+    .replace(/\$/g, '\\$')
     .replace(/#/g, '\\#')
-    .replace(/\^/g, '\\textasciicircum{}')
     .replace(/_/g, '\\_')
+    .replace(/\{/g, '\\{')
+    .replace(/\}/g, '\\}')
     .replace(/~/g, '\\textasciitilde{}')
-    // Additional security: escape potentially dangerous characters
-    .replace(/\|/g, '\\textbar{}')
-    .replace(/</g, '\\textless{}')
-    .replace(/>/g, '\\textgreater{}')
-    // Limit length to prevent DoS
-    .substring(0, 1000);
+    .replace(/\^/g, '\\textasciicircum{}')
+    .replace(/</g, '{\\textless}') // Use textless for literal <
+    .replace(/>/g, '{\\textgreater}') // Use textgreater for literal >
+    .replace(/\|/g, '{\\textbar}'); // Use textbar for literal |
+
+  // Optionally, if needed, add more targeted sanitization for highly dangerous commands, 
+  // but *after* the initial escaping. For now, given the template-based generation,
+  // direct command injection via user input should be minimized by the above escapes.
+  // Example: if you wanted to disallow \input:
+  // escaped = escaped.replace(/\\input/g, '{\\textbackslash{}input}');
+  
+  return escaped;
 }
 
 export type { ResumeData };

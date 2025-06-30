@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx'
 
 export async function POST(req: NextRequest) {
   const corsHeaders = {
@@ -142,14 +143,33 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Create a text blob with .docx extension (simple text format)
-    // For a proper DOCX, we would need the 'docx' library
-    const blob = new Blob([textContent], { 
-      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' 
-    });
+    // Generate proper DOCX using the docx library
+    let doc;
+    
+    if (resume.processed_file_path?.endsWith('.tex')) {
+      // For ATS format, create a simple document from text content
+      const paragraphs = textContent.split('\n').map(line => 
+        new Paragraph({
+          children: [new TextRun(line.trim() || ' ')], // Empty lines need a space
+        })
+      );
+      
+      doc = new Document({
+        sections: [{
+          properties: {},
+          children: paragraphs,
+        }],
+      });
+    } else {
+      // For Visual format, generate structured DOCX from JSON data
+      doc = await generateStructuredDocx(resume.resume_preview_json);
+    }
+
+    // Generate the DOCX buffer
+    const buffer = await Packer.toBuffer(doc);
 
     // Create response with proper headers
-    const response = new NextResponse(blob);
+    const response = new NextResponse(buffer);
     response.headers.set('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     response.headers.set('Content-Disposition', `attachment; filename="enhanced-resume-${new Date().toISOString().split('T')[0]}.docx"`);
     
@@ -284,4 +304,247 @@ function generateTextFromResumeData(content: any): string {
   }
   
   return text;
+}
+
+// Helper function to generate structured DOCX from resume JSON data
+async function generateStructuredDocx(resumePreviewJson: any): Promise<Document> {
+  let resumeData;
+  if (typeof resumePreviewJson === 'string') {
+    resumeData = JSON.parse(resumePreviewJson);
+  } else {
+    resumeData = resumePreviewJson;
+  }
+
+  // Extract content from nested structure if needed
+  const content = resumeData.content || resumeData;
+  
+  const sections = [];
+
+  // Name and title
+  if (content.name) {
+    sections.push(
+      new Paragraph({
+        children: [new TextRun({ text: content.name, bold: true, size: 32 })],
+        heading: HeadingLevel.TITLE,
+      })
+    );
+  }
+  
+  if (content.title) {
+    sections.push(
+      new Paragraph({
+        children: [new TextRun({ text: content.title, size: 24 })],
+        spacing: { after: 200 },
+      })
+    );
+  }
+
+  // Contact information
+  if (content.contact) {
+    sections.push(
+      new Paragraph({
+        children: [new TextRun({ text: 'CONTACT INFORMATION', bold: true, size: 24 })],
+        heading: HeadingLevel.HEADING_1,
+        spacing: { before: 200, after: 100 },
+      })
+    );
+    
+    const contactInfo = [];
+    if (content.contact.email) contactInfo.push(`Email: ${content.contact.email}`);
+    if (content.contact.phone) contactInfo.push(`Phone: ${content.contact.phone}`);
+    if (content.contact.location) contactInfo.push(`Location: ${content.contact.location}`);
+    if (content.contact.linkedin) contactInfo.push(`LinkedIn: ${content.contact.linkedin}`);
+    if (content.contact.website) contactInfo.push(`Website: ${content.contact.website}`);
+    
+    contactInfo.forEach(info => {
+      sections.push(new Paragraph({ children: [new TextRun(info)] }));
+    });
+  }
+
+  // Summary
+  if (content.summary) {
+    sections.push(
+      new Paragraph({
+        children: [new TextRun({ text: 'SUMMARY', bold: true, size: 24 })],
+        heading: HeadingLevel.HEADING_1,
+        spacing: { before: 200, after: 100 },
+      })
+    );
+    sections.push(new Paragraph({ children: [new TextRun(content.summary)] }));
+  }
+
+  // Experience
+  if (content.experience && Array.isArray(content.experience)) {
+    sections.push(
+      new Paragraph({
+        children: [new TextRun({ text: 'EXPERIENCE', bold: true, size: 24 })],
+        heading: HeadingLevel.HEADING_1,
+        spacing: { before: 200, after: 100 },
+      })
+    );
+    
+    content.experience.forEach((exp: any) => {
+      let title = '';
+      if (exp.title) title += exp.title;
+      if (exp.company) title += ` at ${exp.company}`;
+      if (exp.duration) title += ` (${exp.duration})`;
+      
+      if (title) {
+        sections.push(
+          new Paragraph({
+            children: [new TextRun({ text: title, bold: true })],
+            spacing: { before: 100 },
+          })
+        );
+      }
+      
+      if (exp.location) {
+        sections.push(new Paragraph({ children: [new TextRun(exp.location)] }));
+      }
+      
+      if (exp.description) {
+        sections.push(new Paragraph({ children: [new TextRun(exp.description)] }));
+      }
+      
+      if (exp.achievements && Array.isArray(exp.achievements)) {
+        exp.achievements.forEach((achievement: string) => {
+          sections.push(new Paragraph({ children: [new TextRun(`• ${achievement}`)] }));
+        });
+      }
+    });
+  }
+
+  // Education
+  if (content.education && Array.isArray(content.education)) {
+    sections.push(
+      new Paragraph({
+        children: [new TextRun({ text: 'EDUCATION', bold: true, size: 24 })],
+        heading: HeadingLevel.HEADING_1,
+        spacing: { before: 200, after: 100 },
+      })
+    );
+    
+    content.education.forEach((edu: any) => {
+      let title = '';
+      if (edu.degree) title += edu.degree;
+      if (edu.institution) title += ` from ${edu.institution}`;
+      if (edu.year) title += ` (${edu.year})`;
+      
+      if (title) {
+        sections.push(
+          new Paragraph({
+            children: [new TextRun({ text: title, bold: true })],
+            spacing: { before: 100 },
+          })
+        );
+      }
+      
+      if (edu.location) {
+        sections.push(new Paragraph({ children: [new TextRun(edu.location)] }));
+      }
+      
+      if (edu.gpa) {
+        sections.push(new Paragraph({ children: [new TextRun(`GPA: ${edu.gpa}`)] }));
+      }
+      
+      if (edu.honors) {
+        sections.push(new Paragraph({ children: [new TextRun(`Honors: ${edu.honors}`)] }));
+      }
+    });
+  }
+
+  // Skills
+  if (content.skills && Array.isArray(content.skills)) {
+    sections.push(
+      new Paragraph({
+        children: [new TextRun({ text: 'SKILLS', bold: true, size: 24 })],
+        heading: HeadingLevel.HEADING_1,
+        spacing: { before: 200, after: 100 },
+      })
+    );
+    
+    content.skills.forEach((skill: any) => {
+      if (typeof skill === 'string') {
+        sections.push(new Paragraph({ children: [new TextRun(`• ${skill}`)] }));
+      } else if (skill.category && skill.items) {
+        sections.push(
+          new Paragraph({
+            children: [new TextRun({ text: `${skill.category}:`, bold: true })],
+            spacing: { before: 100 },
+          })
+        );
+        
+        if (Array.isArray(skill.items)) {
+          skill.items.forEach((item: string) => {
+            sections.push(new Paragraph({ children: [new TextRun(`  • ${item}`)] }));
+          });
+        } else {
+          sections.push(new Paragraph({ children: [new TextRun(`  • ${skill.items}`)] }));
+        }
+      }
+    });
+  }
+
+  // Projects
+  if (content.projects && Array.isArray(content.projects)) {
+    sections.push(
+      new Paragraph({
+        children: [new TextRun({ text: 'PROJECTS', bold: true, size: 24 })],
+        heading: HeadingLevel.HEADING_1,
+        spacing: { before: 200, after: 100 },
+      })
+    );
+    
+    content.projects.forEach((project: any) => {
+      let title = '';
+      if (project.name) title += project.name;
+      if (project.duration) title += ` (${project.duration})`;
+      
+      if (title) {
+        sections.push(
+          new Paragraph({
+            children: [new TextRun({ text: title, bold: true })],
+            spacing: { before: 100 },
+          })
+        );
+      }
+      
+      if (project.description) {
+        sections.push(new Paragraph({ children: [new TextRun(project.description)] }));
+      }
+      
+      if (project.technologies) {
+        sections.push(new Paragraph({ children: [new TextRun(`Technologies: ${project.technologies}`)] }));
+      }
+    });
+  }
+
+  // Certifications
+  if (content.certifications && Array.isArray(content.certifications)) {
+    sections.push(
+      new Paragraph({
+        children: [new TextRun({ text: 'CERTIFICATIONS', bold: true, size: 24 })],
+        heading: HeadingLevel.HEADING_1,
+        spacing: { before: 200, after: 100 },
+      })
+    );
+    
+    content.certifications.forEach((cert: any) => {
+      let title = '';
+      if (cert.name) title += cert.name;
+      if (cert.issuer) title += ` by ${cert.issuer}`;
+      if (cert.year) title += ` (${cert.year})`;
+      
+      if (title) {
+        sections.push(new Paragraph({ children: [new TextRun(title)] }));
+      }
+    });
+  }
+
+  return new Document({
+    sections: [{
+      properties: {},
+      children: sections,
+    }],
+  });
 }
