@@ -120,7 +120,6 @@ export default function ResumeEnhancer() {
           filter: `id=eq.${resumeId}`,
         },
         (payload) => {
-          console.log("Resume update received:", payload.new.status)
 
           if (payload.new.status === "completed") {
             setIsProcessing(false)

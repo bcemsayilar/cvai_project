@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { checkRateLimit, getClientIdentifier } from '@/lib/rate-limit';
 
 export async function POST(req: NextRequest) {
   const corsHeaders = {
@@ -12,6 +13,25 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // Rate limiting check
+    const clientId = getClientIdentifier(req);
+    const rateLimitResult = await checkRateLimit(clientId, 'pdf');
+    
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { error: 'Too many download requests. Please try again later.' },
+        { 
+          status: 429, 
+          headers: {
+            ...corsHeaders,
+            'X-RateLimit-Limit': rateLimitResult.limit.toString(),
+            'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+            'X-RateLimit-Reset': new Date(rateLimitResult.reset).toISOString(),
+          }
+        }
+      );
+    }
+
     const { resumeId } = await req.json();
 
     if (!resumeId) {

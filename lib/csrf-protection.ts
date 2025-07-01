@@ -126,7 +126,8 @@ export const useCSRF = () => {
   };
 
   const setToken = (token: string) => {
-    document.cookie = `csrf-token=${token}; path=/; secure; samesite=lax`;
+    const isSecure = window.location.protocol === 'https:';
+    document.cookie = `csrf-token=${token}; path=/${isSecure ? '; secure' : ''}; samesite=lax`;
   };
 
   const generateAndSetToken = (): string => {

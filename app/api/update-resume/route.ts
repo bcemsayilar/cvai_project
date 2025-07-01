@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { envConfig } from '@/lib/env-config'
+import { withCSRFProtection } from '@/lib/csrf-protection'
+import { checkRateLimit, getClientIdentifier } from '@/lib/rate-limit'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,8 +14,27 @@ export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders })
 }
 
-export async function POST(req: NextRequest) {
+export const POST = withCSRFProtection(async (req: Request) => {
   try {
+    // Rate limiting check
+    const clientId = getClientIdentifier(req as any);
+    const rateLimitResult = await checkRateLimit(clientId, 'api');
+    
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again later.' },
+        { 
+          status: 429, 
+          headers: {
+            ...corsHeaders,
+            'X-RateLimit-Limit': rateLimitResult.limit.toString(),
+            'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+            'X-RateLimit-Reset': new Date(rateLimitResult.reset).toISOString(),
+          }
+        }
+      );
+    }
+
     const { resumeId, updatedContent } = await req.json()
 
     if (!resumeId || !updatedContent) {
@@ -230,4 +251,4 @@ export async function POST(req: NextRequest) {
       { status: 500, headers: corsHeaders }
     )
   }
-}
+});

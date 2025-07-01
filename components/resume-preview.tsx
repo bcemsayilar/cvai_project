@@ -14,6 +14,7 @@ import { ResumePdfDocument } from "./resume-pdf-document"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { useAuth } from "@/contexts/auth-context"
 import { ResumeEditor } from "./resume-editor"
+import { useCSRF } from "@/lib/csrf-protection"
 
 interface ATSScore {
   keywordMatch: number
@@ -224,6 +225,7 @@ export const ResumePreview = memo(function ResumePreview({
   const { toast } = useToast()
   const { session } = useAuth();
   const accessToken = session?.access_token;
+  const { token: csrfToken, generateAndSetToken } = useCSRF();
 
   // Create supabase client with useRef to prevent recreation on every render
   const supabaseRef = useRef(createSupabaseClient())
@@ -541,7 +543,6 @@ export const ResumePreview = memo(function ResumePreview({
   }, []);
 
   const renderResumePreview = () => {
-    console.log('renderResumePreview called. Current resumePreviewData?.content?.name:', resumePreviewData?.content?.name);
 
      // For LaTeX format, show the actual LaTeX-compiled PDF
      if (isLatexFormat) {
@@ -659,11 +660,15 @@ export const ResumePreview = memo(function ResumePreview({
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
     
     try {
+      // Ensure CSRF token exists
+      const currentToken = csrfToken || generateAndSetToken();
+      
       const response = await fetch('/api/latex-to-pdf', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`
+          'Authorization': `Bearer ${accessToken}`,
+          'x-csrf-token': currentToken
         },
         body: JSON.stringify({
           resumeId,
@@ -743,10 +748,14 @@ export const ResumePreview = memo(function ResumePreview({
 
       // Try the new blob-based download method first
       try {
+        // Ensure CSRF token exists
+        const currentToken = csrfToken || generateAndSetToken();
+        
         const response = await fetch('/api/latex-to-pdf', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'x-csrf-token': currentToken,
             ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
           },
           body: JSON.stringify({ resumeId, isPreview: false }),
@@ -930,11 +939,15 @@ export const ResumePreview = memo(function ResumePreview({
     }
 
     try {
+      // Ensure CSRF token exists
+      const currentToken = csrfToken || generateAndSetToken();
+      
       const response = await fetch('/api/update-resume', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`
+          'Authorization': `Bearer ${accessToken}`,
+          'x-csrf-token': currentToken
         },
         body: JSON.stringify({
           resumeId,
@@ -957,7 +970,6 @@ export const ResumePreview = memo(function ResumePreview({
           design: prev.design
         };
       });
-      console.log('ResumePreview: resumePreviewData updated, new name:', updatedData.name);
 
       // Force preview update
       setPreviewUpdateKey(prev => prev + 1);
@@ -1013,82 +1025,91 @@ export const ResumePreview = memo(function ResumePreview({
 
   return (
     <Card className="w-full h-full min-h-[800px] overflow-hidden flex flex-col dark:bg-gray-900 dark:border-gray-700">
-      <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
-        <div className="flex items-center space-x-4">
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-            {isLatexFormat ? "ATS-Optimized Resume" : "Resume Preview"}
-          </h3>
-          
-          {/* Warning Message */}
-          {resumePreviewError && (
-            <div className="text-yellow-600 dark:text-yellow-400 flex items-center space-x-1">
-              <AlertTriangle size={18} />
-              <span className="text-sm">{resumePreviewError}</span>
-            </div>
-          )}
-        </div>
-        
-        <div className="flex items-center space-x-4">
-          {/* Compare ATS Scores Button - Only show if both scores exist */}
-          {atsScoreOriginal && atsScoreEnhanced && (
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="outline" className="flex items-center space-x-2 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800">
-                  <BarChart3 size={18} />
-                  <span>Compare ATS Scores</span>
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto dark:bg-gray-900 dark:border-gray-700">
-                <DialogHeader>
-                  <DialogTitle className="dark:text-gray-100">ATS Score Comparison</DialogTitle>
-                </DialogHeader>
-                <ATSScoreDisplay 
-                  originalScore={atsScoreOriginal} 
-                  enhancedScore={atsScoreEnhanced} 
-                />
-              </DialogContent>
-            </Dialog>
-          )}
-
-          {/* Edit Button - Premium Feature */}
-          {isPremium && resumePreviewData?.content && (
-            <Button 
-              onClick={() => setShowEditor(!showEditor)}
-              variant={showEditor ? "default" : "outline"} 
-              className="flex items-center space-x-2 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
-            >
-              <Edit3 size={18} />
-              <span>{showEditor ? 'Close Editor' : 'Edit Resume'}</span>
-              {isLatexFormat && (
-                <Badge variant="secondary" className="ml-1 text-xs">
-                  ATS
-                </Badge>
-              )}
-            </Button>
-          )}
+      <div className="p-4 border-b dark:border-gray-700 space-y-3">
+        {/* Title Row */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+              {isLatexFormat ? "ATS-Optimized Resume" : "Resume Preview"}
+            </h3>
+            
+            {/* Warning Message */}
+            {resumePreviewError && (
+              <div className="text-yellow-600 dark:text-yellow-400 flex items-center space-x-1">
+                <AlertTriangle size={18} />
+                <span className="text-sm">{resumePreviewError}</span>
+              </div>
+            )}
+          </div>
 
           {/* Dark Mode Toggle */}
           <div className="flex items-center space-x-2">
-            <Sun size={18} className="text-gray-500 dark:text-gray-400"/>
+            <Sun size={16} className="text-gray-500 dark:text-gray-400"/>
             <Switch checked={isDarkMode} onCheckedChange={toggleDarkMode} id="dark-mode" />
-            <Moon size={18} className="text-gray-500 dark:text-gray-400"/>
+            <Moon size={16} className="text-gray-500 dark:text-gray-400"/>
+          </div>
+        </div>
+
+        {/* Action Buttons Row */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            {/* Compare ATS Scores Button - Only show if both scores exist */}
+            {atsScoreOriginal && atsScoreEnhanced && (
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="flex items-center space-x-2 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800">
+                    <BarChart3 size={16} />
+                    <span>Compare ATS</span>
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto dark:bg-gray-900 dark:border-gray-700">
+                  <DialogHeader>
+                    <DialogTitle className="dark:text-gray-100">ATS Score Comparison</DialogTitle>
+                  </DialogHeader>
+                  <ATSScoreDisplay 
+                    originalScore={atsScoreOriginal} 
+                    enhancedScore={atsScoreEnhanced} 
+                  />
+                </DialogContent>
+              </Dialog>
+            )}
+
+            {/* Edit Button - Premium Feature */}
+            {isPremium && resumePreviewData?.content && (
+              <Button 
+                onClick={() => setShowEditor(!showEditor)}
+                variant={showEditor ? "default" : "outline"} 
+                size="sm"
+                className="flex items-center space-x-2 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+              >
+                <Edit3 size={16} />
+                <span>{showEditor ? 'Close Editor' : 'Edit Resume'}</span>
+                {isLatexFormat && (
+                  <Badge variant="secondary" className="ml-1 text-xs">
+                    ATS
+                  </Badge>
+                )}
+              </Button>
+            )}
           </div>
 
           {/* Download Buttons */}
           {(resumePreviewData?.content || isLatexFormat) && (
-            <>
+            <div className="flex items-center space-x-2">
               {isLatexFormat ? (
                 <Button
+                  size="sm"
                   className="flex items-center space-x-2"
                   onClick={handleATSPdfDownload}
                   disabled={isDownloadingPdf}
                 >
                   {isDownloadingPdf ? (
-                    <Loader2 className="animate-spin" size={18} />
+                    <Loader2 className="animate-spin" size={16} />
                   ) : (
-                    <Download size={18} />
+                    <Download size={16} />
                   )}
-                  <span>{isDownloadingPdf ? 'Downloading...' : 'Download ATS PDF'}</span>
+                  <span className="hidden sm:inline">{isDownloadingPdf ? 'Downloading...' : 'PDF'}</span>
+                  <span className="sm:hidden">PDF</span>
                 </Button>
               ) : (
                 downloadDocument && (
@@ -1099,49 +1120,57 @@ export const ResumePreview = memo(function ResumePreview({
                   >
                     {({ blob, url, loading, error }) => (
                       <Button
+                        size="sm"
                         className="flex items-center space-x-2"
                         disabled={loading}
                       >
                         {loading ? (
-                          <Loader2 className="animate-spin" size={18} />
+                          <Loader2 className="animate-spin" size={16} />
                         ) : (
-                          <Download size={18} />
+                          <Download size={16} />
                         )}
-                        <span>{loading ? 'Generating PDF...' : 'Download PDF'}</span>
+                        <span className="hidden sm:inline">{loading ? 'Generating...' : 'PDF'}</span>
+                        <span className="sm:hidden">PDF</span>
                       </Button>
                     )}
                   </PDFDownloadLink>
                 )
               )}
 
-              {/* New DOCX Download Button */}
+              {/* DOCX Download Button */}
               <Button
-                 className="flex items-center space-x-2"
-                 onClick={() => handleApiDownload('docx')}
-                 disabled={isDownloadingPdf} // Use same loading state for simplicity
+                size="sm"
+                variant="outline"
+                className="flex items-center space-x-2"
+                onClick={() => handleApiDownload('docx')}
+                disabled={isDownloadingPdf}
               >
                 {isDownloadingPdf ? (
-                   <Loader2 className="animate-spin" size={18} />
+                  <Loader2 className="animate-spin" size={16} />
                 ) : (
-                   <FileText size={18} /> // Using FileText icon for generic document
+                  <FileText size={16} />
                 )}
-                <span>Download DOCX</span>
+                <span className="hidden sm:inline">DOCX</span>
+                <span className="sm:hidden">DOC</span>
               </Button>
 
-              {/* New LaTeX (.tex) Download Button */}
+              {/* LaTeX Download Button */}
               <Button
-                 className="flex items-center space-x-2"
-                 onClick={() => handleApiDownload('latex')}
-                 disabled={isDownloadingPdf} // Use same loading state for simplicity
+                size="sm"
+                variant="outline"
+                className="flex items-center space-x-2"
+                onClick={() => handleApiDownload('latex')}
+                disabled={isDownloadingPdf}
               >
                 {isDownloadingPdf ? (
-                   <Loader2 className="animate-spin" size={18} />
+                  <Loader2 className="animate-spin" size={16} />
                 ) : (
-                   <FileText size={18} /> // Using FileText icon for generic document
+                  <FileText size={16} />
                 )}
-                <span>Download LaTeX (.tex)</span>
+                <span className="hidden sm:inline">LaTeX</span>
+                <span className="sm:hidden">TEX</span>
               </Button>
-            </>
+            </div>
           )}
         </div>
       </div>

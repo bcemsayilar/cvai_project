@@ -4,6 +4,7 @@ import { checkRateLimit, getClientIdentifier } from '@/lib/rate-limit';
 import { validator_utils, sanitizer } from '@/lib/sanitization';
 import { envConfig } from '@/lib/env-config';
 import { logSecurityEvent, extractRequestInfo } from '@/lib/security-monitor';
+import { withCSRFProtection } from '@/lib/csrf-protection';
 
 // CORS headers shared between POST and OPTIONS
 const corsHeaders = {
@@ -20,7 +21,7 @@ export async function OPTIONS() {
   });
 }
 
-export async function POST(req: NextRequest) {
+export const POST = withCSRFProtection(async (req: Request) => {
 
   const requestInfo = extractRequestInfo(req);
 
@@ -216,4 +217,4 @@ export async function POST(req: NextRequest) {
       error: 'PDF conversion failed: ' + (error instanceof Error ? error.message : String(error)) 
     }, { status: 500, headers: corsHeaders });
   }
-}
+});

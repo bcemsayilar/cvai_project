@@ -1,4 +1,3 @@
-// @ts-nocheck
 import type React from "react"
 import type { Metadata } from "next"
 import { AuthProvider } from "@/contexts/auth-context"

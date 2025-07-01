@@ -132,13 +132,15 @@ export function ResumeEditor({ initialData, onSave, onError }: ResumeEditorProps
       </div>
 
       <Tabs defaultValue="basic" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="basic">Basic Info</TabsTrigger>
-          <TabsTrigger value="experience">Experience</TabsTrigger>
-          <TabsTrigger value="education">Education</TabsTrigger>
-          <TabsTrigger value="skills">Skills</TabsTrigger>
-          <TabsTrigger value="projects">Projects</TabsTrigger>
-        </TabsList>
+        <div className="w-full overflow-x-auto">
+          <TabsList className="inline-flex w-max min-w-full">
+            <TabsTrigger value="basic" className="whitespace-nowrap">Basic Info</TabsTrigger>
+            <TabsTrigger value="experience" className="whitespace-nowrap">Experience</TabsTrigger>
+            <TabsTrigger value="education" className="whitespace-nowrap">Education</TabsTrigger>
+            <TabsTrigger value="skills" className="whitespace-nowrap">Skills</TabsTrigger>
+            <TabsTrigger value="projects" className="whitespace-nowrap">Projects</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="basic" className="space-y-4">
           <div className="grid grid-cols-2 gap-4">

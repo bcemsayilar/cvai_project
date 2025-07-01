@@ -46,12 +46,14 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "img-src 'self' data: https: blob:",
               "font-src 'self' https://fonts.gstatic.com data:",
-              "connect-src 'self' https://*.supabase.co https://latexonline.cc https://latex.ytotech.com wss://*.supabase.co",
-              "frame-src 'self' https://checkout.stripe.com",
+              "connect-src 'self' https://*.supabase.co https://latexonline.cc https://latex.ytotech.com wss://*.supabase.co data: blob:",
+              "frame-src 'self' https://checkout.stripe.com data: blob:",
               "object-src 'none'",
               "base-uri 'self'",
               "form-action 'self'",
-              "frame-ancestors 'none'"
+              "frame-ancestors 'self' blob:",
+              "worker-src 'self' blob:",
+              "child-src 'self' blob:"
             ].join('; ')
           }
         ]
