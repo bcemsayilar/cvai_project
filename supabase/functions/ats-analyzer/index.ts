@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { Groq } from "https://esm.sh/groq-sdk";
+import { GoogleGenAI } from "https://esm.sh/@google/genai";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -20,12 +20,12 @@ interface ATSCriteria {
  * Analyzes resume text and provides ATS score (0-100) with detailed breakdown
  */
 async function analyzeATSScore(resumeText: string, jobDescription?: string): Promise<ATSCriteria> {
-  const groqApiKey = Deno.env.get("GROQ_API_KEY");
-  if (!groqApiKey) {
-    throw new Error("GROQ_API_KEY not found in environment variables");
+  const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
+  if (!geminiApiKey) {
+    throw new Error("GEMINI_API_KEY not found in environment variables");
   }
 
-  const groq = new Groq({ apiKey: groqApiKey });
+  const genAI = new GoogleGenAI({ apiKey: geminiApiKey });
 
   const systemPrompt = `
 You are an expert ATS (Applicant Tracking System) analyzer. Analyze the provided resume text and provide a comprehensive ATS compatibility score based on industry standards.
@@ -62,26 +62,24 @@ Guidelines:
 `;
 
   try {
-    const chatCompletion = await groq.chat.completions.create({
-      messages: [
-        {
-          role: "system",
-          content: systemPrompt
-        },
+    const chatCompletion = await genAI.models.generateContent({
+      model: "gemini-2.5-pro",
+      contents: [
         {
           role: "user",
-          content: `Analyze this resume for ATS compatibility:\n\n${resumeText}${jobDescription ? `\n\nTarget job description (for keyword matching):\n${jobDescription}` : ''}`
+          parts: [{ text: `${systemPrompt}\n\nAnalyze this resume for ATS compatibility:\n\n${resumeText}${jobDescription ? `\n\nTarget job description (for keyword matching):\n${jobDescription}` : ''}` }]
         }
       ],
-      model: "llama-3.1-8b-instant",
-      temperature: 0.3, // Lower temperature for consistent scoring
-      max_tokens: 1500,
-      response_format: { type: "json_object" }
+      config: {
+        temperature: 0.3, // Lower temperature for consistent scoring
+        maxOutputTokens: 1500,
+        responseMimeType: "application/json"
+      }
     });
 
-    const responseText = chatCompletion.choices[0]?.message?.content || "";
+    const responseText = chatCompletion.text || "";
     if (!responseText) {
-      throw new Error("Empty response from Groq API");
+      throw new Error("Empty response from Gemini API");
     }
 
     // Parse JSON response

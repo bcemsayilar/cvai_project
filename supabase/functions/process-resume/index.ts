@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { Groq } from "https://esm.sh/groq-sdk";
+import { GoogleGenAI } from "https://esm.sh/@google/genai";
 import { create } from "https://deno.land/x/djwt@v3.0.1/mod.ts";
 import { generateATSLatexResume } from "./latex-generator-edge.ts";
 
@@ -365,10 +365,10 @@ await supabaseClient.from("profiles").update({
       });
     }
     
-    // Initialize Groq client early for ATS analysis
-    const groqApiKey = Deno.env.get("GROQ_API_KEY");
-    if (!groqApiKey) {
-      console.error("GROQ_API_KEY not found in environment variables");
+    // Initialize Gemini client early for ATS analysis
+    const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
+    if (!geminiApiKey) {
+      console.error("GEMINI_API_KEY not found in environment variables");
       await supabaseClient.from("resumes").update({
         status: "failed"
       }).eq("id", resumeId);
@@ -382,7 +382,7 @@ await supabaseClient.from("profiles").update({
         }
       });
     }
-    const groq = new Groq({ apiKey: groqApiKey });
+    const genAI = new GoogleGenAI({ apiKey: geminiApiKey });
     
     // Analyze original resume ATS score before enhancement
     console.log("Analyzing original resume ATS score...");
@@ -519,27 +519,25 @@ For missing information, use empty strings ("") for text fields or empty arrays 
 Output ONLY the raw JSON object that can be parsed directly with JSON.parse().`;
 
       try {
-        console.log("Calling Groq API for ATS format");
-        const atsCompletion = await groq.chat.completions.create({
-          messages: [
-            {
-              role: "system", 
-              content: atsSystemPrompt
-            },
+        console.log("Calling Gemini API for ATS format");
+        const atsCompletion = await genAI.models.generateContent({
+          model: "gemini-2.5-pro",
+          contents: [
             {
               role: "user",
-              content: `Analyze and optimize this resume for ATS compatibility:\n\n${resumeText}`
+              parts: [{ text: `${atsSystemPrompt}\n\nAnalyze and optimize this resume for ATS compatibility:\n\n${resumeText}` }]
             }
           ],
-          model: "llama-3.1-8b-instant",
-          temperature: 0.5,
-          max_tokens: 3000,
-          response_format: { type: "json_object" }
+          config: {
+            temperature: 0.5,
+            maxOutputTokens: 3000,
+            responseMimeType: "application/json"
+          }
         });
 
-        const atsResponseText = atsCompletion.choices[0]?.message?.content || "";
+        const atsResponseText = atsCompletion.text || "";
         if (!atsResponseText) {
-          throw new Error("Empty response from Groq API for ATS format");
+          throw new Error("Empty response from Gemini API for ATS format");
         }
 
         // Parse the ATS JSON response
@@ -821,33 +819,29 @@ ${styleProperties}
 ${customInstructions ? `\nAdditional instructions: ${customInstructions}` : ""}
 `;
     console.log("System prompt created with style instructions");
-    console.log("Groq client initialized");
-    // Process the resume with Groq
+    console.log("Gemini client initialized");
+    // Process the resume with Gemini
     try {
-      console.log("Calling Groq API");
-      const chatCompletion = await groq.chat.completions.create({
-        messages: [
-          {
-            role: "system",
-            content: systemPrompt
-          },
+      console.log("Calling Gemini API");
+      const chatCompletion = await genAI.models.generateContent({
+        model: "gemini-2.5-pro",
+        contents: [
           {
             role: "user",
-            content: `Here is the resume to enhance and design:\n\n${resumeText}`
+            parts: [{ text: `${systemPrompt}\n\nHere is the resume to enhance and design:\n\n${resumeText}` }]
           }
         ],
-        model: "llama-3.1-8b-instant",
-        temperature: 0.7,
-        max_tokens: 4000,
-        response_format: {
-          type: "json_object"
+        config: {
+          temperature: 0.7,
+          maxOutputTokens: 4000,
+          responseMimeType: "application/json"
         }
       });
-      console.log("Groq API call successful");
+      console.log("Gemini API call successful");
       // Extract response
-      let responseText = chatCompletion.choices[0]?.message?.content || "";
+      let responseText = chatCompletion.text || "";
       if (!responseText) {
-        throw new Error("Empty response from Groq API");
+        throw new Error("Empty response from Gemini API");
       }
       // Parse the JSON response
       let resumeJson;
@@ -998,7 +992,7 @@ ${customInstructions ? `\nAdditional instructions: ${customInstructions}` : ""}
       });
     } catch (error) {
       const msg = error?.message || String(error);
-      console.error("Error processing resume with Groq:", msg);
+      console.error("Error processing resume with Gemini:", msg);
       await supabaseClient.from("resumes").update({
         status: "failed"
       }).eq("id", resumeId);
