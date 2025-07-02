@@ -35,22 +35,22 @@ export function Footer() {
                 <h3 className="text-sm font-semibold text-gray-400 dark:text-gray-500 tracking-wider uppercase">Product</h3>
                 <ul className="mt-4 space-y-4">
                   <li>
-                    <Link href="#" className="text-base text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+                    <Link href="/#how-it-works" className="text-base text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
                       Features
                     </Link>
                   </li>
                   <li>
-                    <Link href="#" className="text-base text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+                    <Link href="/#pricing" className="text-base text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
                       Pricing
                     </Link>
                   </li>
                   <li>
-                    <Link href="#" className="text-base text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+                    <Link href="/#examples" className="text-base text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
                       Examples
                     </Link>
                   </li>
                   <li>
-                    <Link href="#" className="text-base text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+                    <Link href="/#testimonials" className="text-base text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
                       Testimonials
                     </Link>
                   </li>
@@ -60,17 +60,17 @@ export function Footer() {
                 <h3 className="text-sm font-semibold text-gray-400 dark:text-gray-500 tracking-wider uppercase">Support</h3>
                 <ul className="mt-4 space-y-4">
                   <li>
-                    <Link href="#" className="text-base text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+                    <Link href="/help" className="text-base text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
                       Help Center
                     </Link>
                   </li>
                   <li>
-                    <Link href="#" className="text-base text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+                    <Link href="mailto:support@resumeai.com" className="text-base text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
                       Contact Us
                     </Link>
                   </li>
                   <li>
-                    <Link href="#" className="text-base text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+                    <Link href="/help#faq" className="text-base text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
                       FAQ
                     </Link>
                   </li>
@@ -82,7 +82,7 @@ export function Footer() {
                 <h3 className="text-sm font-semibold text-gray-400 dark:text-gray-500 tracking-wider uppercase">Company</h3>
                 <ul className="mt-4 space-y-4">
                   <li>
-                    <Link href="#" className="text-base text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+                    <Link href="/about" className="text-base text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
                       About
                     </Link>
                   </li>
@@ -92,7 +92,7 @@ export function Footer() {
                     </Link>
                   </li>
                   <li>
-                    <Link href="#" className="text-base text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+                    <Link href="mailto:careers@resumeai.com" className="text-base text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
                       Careers
                     </Link>
                   </li>
@@ -102,17 +102,17 @@ export function Footer() {
                 <h3 className="text-sm font-semibold text-gray-400 dark:text-gray-500 tracking-wider uppercase">Legal</h3>
                 <ul className="mt-4 space-y-4">
                   <li>
-                    <Link href="#" className="text-base text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+                    <Link href="/privacy" className="text-base text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
                       Privacy Policy
                     </Link>
                   </li>
                   <li>
-                    <Link href="#" className="text-base text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+                    <Link href="/terms" className="text-base text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
                       Terms of Service
                     </Link>
                   </li>
                   <li>
-                    <Link href="#" className="text-base text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+                    <Link href="/privacy#cookies" className="text-base text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
                       Cookie Policy
                     </Link>
                   </li>
