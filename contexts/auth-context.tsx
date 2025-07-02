@@ -9,7 +9,7 @@ type Profile = {
   id: string
   email: string
   full_name: string | null
-  subscription_type: "trial" | "monthly" | "annual"
+  subscription_type: "trial" | "job_hunt_2w" | "premium_1m" | "job_seeker_3m"
   subscription_status: boolean
   subscription_started_at: string
   subscription_expires_at: string
@@ -17,6 +17,9 @@ type Profile = {
   resumes_limit: number
   ats_analyses_used: number
   ats_analyses_limit: number
+  stripe_customer_id: string | null
+  stripe_subscription_id: string | null
+  stripe_payment_method_id: string | null
   created_at: string
   updated_at: string
 }
