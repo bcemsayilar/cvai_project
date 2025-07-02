@@ -210,7 +210,7 @@ export function PaymentModal({ isOpen, onClose, plan }: PaymentModalProps) {
                 )}
               </Button>
             </div>
-          ) : (
+          ) : stripePromise ? (
             <Elements stripe={stripePromise} options={{ clientSecret }}>
               <CheckoutForm
                 clientSecret={clientSecret}
@@ -219,6 +219,10 @@ export function PaymentModal({ isOpen, onClose, plan }: PaymentModalProps) {
                 onError={handleError}
               />
             </Elements>
+          ) : (
+            <div className="text-center text-red-600 dark:text-red-400">
+              Payment system is currently unavailable
+            </div>
           )}
         </div>
       </div>

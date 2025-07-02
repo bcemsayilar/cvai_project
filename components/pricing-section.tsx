@@ -11,11 +11,20 @@ export function PricingSection() {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
   const { user, profile } = useAuth()
 
+  // Stripe aktif mi kontrolü
+  const isStripeConfigured = Boolean(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
+
   const handlePlanSelect = (plan: PricingPlan) => {
     if (!user) {
       alert("Please sign in to purchase a plan")
       return
     }
+    
+    if (!isStripeConfigured) {
+      alert("🚧 Demo Mode: Payment system is not configured yet")
+      return
+    }
+    
     setSelectedPlan(plan)
     setIsPaymentModalOpen(true)
   }
@@ -45,6 +54,14 @@ export function PricingSection() {
             <p className="text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto leading-relaxed">
               Choose the perfect duration for your job hunt. No long-term commitments, just results.
             </p>
+            
+            {!isStripeConfigured && (
+              <div className="mt-6 mx-auto max-w-2xl bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+                <p className="text-sm text-center text-yellow-800 dark:text-yellow-200">
+                  🚧 <strong>Demo Mode:</strong> Payment system is being configured. Plans are shown for preview only.
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">

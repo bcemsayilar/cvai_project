@@ -5,6 +5,10 @@ import { createSupabaseClient } from '@/lib/supabase'
 import { PRICING_PLANS } from '@/lib/stripe'
 
 export async function POST(req: NextRequest) {
+  if (!stripe || !process.env.STRIPE_WEBHOOK_SECRET) {
+    return NextResponse.json({ error: 'Stripe not configured' }, { status: 503 })
+  }
+
   const body = await req.text()
   const signature = (await headers()).get('stripe-signature')
 
@@ -18,7 +22,7 @@ export async function POST(req: NextRequest) {
     event = stripe.webhooks.constructEvent(
       body,
       signature,
-      process.env.STRIPE_WEBHOOK_SECRET!
+      process.env.STRIPE_WEBHOOK_SECRET
     )
   } catch (err) {
     console.error('Webhook signature verification failed:', err)

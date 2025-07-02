@@ -69,6 +69,9 @@ export const formatPrice = (price: number, currency: string = 'usd') => {
 
 // Helper to create Stripe customer
 export const createStripeCustomer = async (email: string, name?: string) => {
+  if (!stripe) {
+    throw new Error('Stripe not configured')
+  }
   return await stripe.customers.create({
     email,
     ...(name && { name }),
@@ -82,6 +85,9 @@ export const createPaymentIntent = async (
   customerId?: string,
   metadata?: Record<string, string>
 ) => {
+  if (!stripe) {
+    throw new Error('Stripe not configured')
+  }
   return await stripe.paymentIntents.create({
     amount,
     currency,
