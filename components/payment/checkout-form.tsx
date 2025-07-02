@@ -125,6 +125,12 @@ export function PaymentModal({ isOpen, onClose, plan }: PaymentModalProps) {
       return
     }
 
+    // Check if Stripe is configured
+    if (!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) {
+      setError('Payment system is not configured yet. Please contact support.')
+      return
+    }
+
     setIsCreatingIntent(true)
     setError(null)
 

@@ -4,6 +4,11 @@ import { createPaymentIntent, createStripeCustomer, PRICING_PLANS, PricingPlan }
 
 export async function POST(req: NextRequest) {
   try {
+    // Check if Stripe is configured
+    if (!process.env.STRIPE_SECRET_KEY) {
+      return NextResponse.json({ error: 'Payment system not configured' }, { status: 503 })
+    }
+
     const { plan, userId } = await req.json()
 
     if (!plan || !userId) {
