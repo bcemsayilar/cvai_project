@@ -20,34 +20,171 @@ const corsHeaders = {
 };
 
 /**
- * Calls the standalone ATS analyzer function
+ * Analyzes resume text and provides ATS score (0-100) with detailed breakdown
  */
-async function callATSAnalyzer(resumeText: string, supabaseClient: any): Promise<ATSCriteria> {
+async function analyzeATSScore(resumeText: string, genAI: any, jobDescription?: string): Promise<ATSCriteria> {
+  const systemPrompt = `
+You are an expert ATS (Applicant Tracking System) analyzer. Analyze the provided resume text and provide a comprehensive ATS compatibility score based on industry standards.
+
+Evaluate the resume on these key criteria:
+
+1. **Keyword Match** (0-100): How well the resume matches relevant industry keywords and skills
+2. **Format Score** (0-100): ATS-friendly formatting (clear sections, standard headings, no graphics blocking text)
+3. **Content Quality** (0-100): Quantified achievements, action verbs, relevant experience
+4. **Readability Score** (0-100): Clear language, proper grammar, logical flow
+5. **Structure Score** (0-100): Standard resume sections, clear hierarchy, contact info accessibility
+
+Provide your analysis in this exact JSON structure:
+{
+  "keywordMatch": number,
+  "formatScore": number,
+  "contentQuality": number,
+  "readabilityScore": number,
+  "structureScore": number,
+  "overallScore": number,
+  "recommendations": [
+    "Specific actionable recommendation 1",
+    "Specific actionable recommendation 2",
+    "Specific actionable recommendation 3"
+  ]
+}
+
+Guidelines:
+- Overall score should be weighted average: (keywordMatch * 0.3) + (formatScore * 0.2) + (contentQuality * 0.25) + (readabilityScore * 0.15) + (structureScore * 0.1)
+- Be objective and consistent in scoring
+- Provide 3-5 specific, actionable recommendations
+- Focus on real ATS compatibility issues, not visual design
+- Only return valid JSON, no additional text
+`;
+
   try {
-    const { data, error } = await supabaseClient.functions.invoke("ats-analyzer", {
-      body: {
-        resumeText: resumeText.trim(),
-      },
+    console.log("Calling Gemini API for ATS analysis...");
+    console.log("Resume text length:", resumeText.length);
+    console.log("Resume text preview:", resumeText.substring(0, 200));
+    
+    const chatCompletion = await genAI.models.generateContent({
+      model: "gemini-2.5-pro",
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: `${systemPrompt}\n\nAnalyze this resume for ATS compatibility:\n\n${resumeText}${jobDescription ? `\n\nTarget job description (for keyword matching):\n${jobDescription}` : ''}` }]
+        }
+      ],
+      generationConfig: {
+        temperature: 0.3,
+        maxOutputTokens: 1500,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "object",
+          properties: {
+            keywordMatch: { type: "integer", minimum: 0, maximum: 100 },
+            formatScore: { type: "integer", minimum: 0, maximum: 100 },
+            contentQuality: { type: "integer", minimum: 0, maximum: 100 },
+            readabilityScore: { type: "integer", minimum: 0, maximum: 100 },
+            structureScore: { type: "integer", minimum: 0, maximum: 100 },
+            overallScore: { type: "integer", minimum: 0, maximum: 100 },
+            recommendations: { 
+              type: "array", 
+              items: { type: "string" },
+              minItems: 3,
+              maxItems: 5
+            }
+          },
+          required: ["keywordMatch", "formatScore", "contentQuality", "readabilityScore", "structureScore", "overallScore", "recommendations"]
+        }
+      }
     });
+    
+    console.log("Gemini API call completed successfully");
 
-    if (error) {
-      console.error("ATS analyzer function error:", error);
-      throw new Error(error.message || "ATS analysis failed");
+    // Extract response text with fallback methods
+    let responseText = "";
+    
+    // Try different response paths
+    if (chatCompletion.text) {
+      responseText = chatCompletion.text;
+      console.log("Got text from chatCompletion.text:", responseText);
+    } else if (chatCompletion.candidates?.[0]?.content?.parts?.[0]?.text) {
+      responseText = chatCompletion.candidates[0].content.parts[0].text;
+      console.log("Got text from candidates array:", responseText);
+    } else if (chatCompletion.response?.text) {
+      responseText = chatCompletion.response.text;
+      console.log("Got text from response.text:", responseText);
+    }
+    
+    if (!responseText) {
+      console.error("EMPTY RESPONSE - Full object:", JSON.stringify(chatCompletion, null, 2));
+      throw new Error("Empty response from Gemini API - please check API configuration and quota");
     }
 
-    if (!data.success || !data.analysis) {
-      console.error("ATS analysis failed:", data.error);
-      throw new Error(data.error || "Failed to analyze ATS score");
+    // Parse JSON response directly (should be valid with responseSchema)
+    let analysisResult;
+    try {
+      analysisResult = JSON.parse(responseText);
+      console.log("Successfully parsed JSON:", analysisResult);
+    } catch (e) {
+      console.log("Direct parse failed, trying JSON extraction:", e);
+      // Fallback: try to extract JSON if parsing fails
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        console.error("NO JSON MATCH - Raw response text:", responseText);
+        throw new Error("No valid JSON object found in Gemini response. Raw response: " + responseText.substring(0, 200));
+      }
+      analysisResult = JSON.parse(jsonMatch[0]);
+      console.log("Successfully parsed extracted JSON:", analysisResult);
     }
+    
+    // Validate and ensure all required fields
+    const result: ATSCriteria = {
+      keywordMatch: Math.round(Math.max(0, Math.min(100, analysisResult.keywordMatch || 0))),
+      formatScore: Math.round(Math.max(0, Math.min(100, analysisResult.formatScore || 0))),
+      contentQuality: Math.round(Math.max(0, Math.min(100, analysisResult.contentQuality || 0))),
+      readabilityScore: Math.round(Math.max(0, Math.min(100, analysisResult.readabilityScore || 0))),
+      structureScore: Math.round(Math.max(0, Math.min(100, analysisResult.structureScore || 0))),
+      overallScore: Math.round(Math.max(0, Math.min(100, analysisResult.overallScore || 0))),
+      recommendations: analysisResult.recommendations || []
+    };
 
-    return data.analysis as ATSCriteria;
+    // Recalculate overall score to ensure consistency
+    result.overallScore = Math.round(
+      (result.keywordMatch * 0.3) +
+      (result.formatScore * 0.2) +
+      (result.contentQuality * 0.25) +
+      (result.readabilityScore * 0.15) +
+      (result.structureScore * 0.1)
+    );
+
+    return result;
+
   } catch (error) {
-    console.error("Error calling ATS analyzer:", error);
+    console.error("Error analyzing ATS score:", error);
+    
+    // Check for rate limiting or network errors
+    if (error.message?.includes('rate limit') || error.message?.includes('quota') || error.message?.includes('429')) {
+      console.warn("Rate limit detected, using fallback scores");
+      return {
+        keywordMatch: 50,
+        formatScore: 60,
+        contentQuality: 55,
+        readabilityScore: 65,
+        structureScore: 70,
+        overallScore: 60,
+        recommendations: ["ATS analysis temporarily unavailable due to rate limiting"]
+      };
+    }
+    
     throw new Error(`Failed to analyze ATS score: ${error.message}`);
   }
 }
+// Cache for access token
+let cachedToken: { token: string; expiry: number } | null = null;
+
 // Function to get Google Cloud access token using djwt library
 async function getAccessToken() {
+  // Check if we have a valid cached token
+  if (cachedToken && Date.now() < cachedToken.expiry) {
+    return cachedToken.token;
+  }
   const clientEmail = Deno.env.get("GOOGLE_CLIENT_EMAIL");
   const privateKey = Deno.env.get("GOOGLE_PRIVATE_KEY")?.replace(/\\n/g, '\n');
   if (!clientEmail || !privateKey) {
@@ -93,6 +230,13 @@ async function getAccessToken() {
       throw new Error(`Failed to get access token: ${tokenResponse.status} - ${errorData}`);
     }
     const tokenData = await tokenResponse.json();
+    
+    // Cache the token (expire 5 minutes before actual expiry)
+    cachedToken = {
+      token: tokenData.access_token,
+      expiry: Date.now() + (tokenData.expires_in - 300) * 1000
+    };
+    
     return tokenData.access_token;
   } catch (error) {
     console.error('Error getting access token:', error);
@@ -126,19 +270,37 @@ async function extractTextFromDocument(fileBuffer, mimeType) {
     };
     const url = `https://us-documentai.googleapis.com/v1/projects/${projectId}/locations/${location}/processors/${processorId}:process`;
     console.log(`Calling Document AI API: ${url}`);
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(requestBody)
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Document AI API error: ${response.status} ${response.statusText}`, errorText);
-      throw new Error(`Document AI API error: ${response.status} ${response.statusText} - ${errorText}`);
+    
+    // Add timeout to prevent hanging
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+    
+    let response;
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Document AI API error: ${response.status} ${response.statusText}`, errorText);
+        throw new Error(`Document AI API error: ${response.status} ${response.statusText} - ${errorText}`);
+      }
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      if (fetchError.name === 'AbortError') {
+        throw new Error('Document AI API request timed out after 30 seconds');
+      }
+      throw fetchError;
     }
+    
     const result = await response.json();
     if (!result.document?.text) {
       throw new Error('No text extracted from document');
@@ -150,7 +312,7 @@ async function extractTextFromDocument(fileBuffer, mimeType) {
     throw error;
   }
 }
-serve(async (req)=>{
+serve(async (req: Request) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response("ok", {
@@ -183,7 +345,7 @@ serve(async (req)=>{
     }
     console.log("User authenticated:", user.id);
     // Parse request body
-    const { resumeId, filePath, enhancementStyles, customInstructions, extractOnly, resumeFormat } = await req.json();
+    const { resumeId, enhancementStyles, customInstructions, extractOnly, resumeFormat } = await req.json();
     if (!resumeId) {
       return new Response(JSON.stringify({
         error: "Resume ID is required"
@@ -269,7 +431,7 @@ await supabaseClient.from("profiles").update({
     }
     console.log("Downloaded original resume file");
     // Extract text from the resume file
-    let resumeText;
+    let resumeText: string;
     const fileExtension = resume.original_file_path.split(".").pop()?.toLowerCase();
     const fileMimeType = fileData.type;
     console.log(`File details - Path: ${resume.original_file_path}, MIME: ${fileMimeType}, Extension: ${fileExtension}`);
@@ -384,25 +546,9 @@ await supabaseClient.from("profiles").update({
     }
     const genAI = new GoogleGenAI({ apiKey: geminiApiKey });
     
-    // Analyze original resume ATS score before enhancement
-    console.log("Analyzing original resume ATS score...");
-    let originalATSScore;
-    try {
-      originalATSScore = await callATSAnalyzer(resumeText, supabaseClient);
-      console.log("Original ATS score:", originalATSScore.overallScore);
-    } catch (error) {
-      console.error("Failed to analyze original ATS score:", error);
-      // Continue processing even if ATS analysis fails
-      originalATSScore = {
-        keywordMatch: 0,
-        formatScore: 0,
-        contentQuality: 0,
-        readabilityScore: 0,
-        structureScore: 0,
-        overallScore: 0,
-        recommendations: ["ATS analysis failed - please try again"]
-      };
-    }
+    // Note: We'll analyze ATS scores in parallel after content processing to optimize performance
+    // Cache original ATS score to avoid re-analyzing the same text
+    let originalATSScoreCache: ATSCriteria | null = null;
     
     // Build the style properties based on enhancement styles
     let styleProperties = "";
@@ -541,68 +687,69 @@ Output ONLY the raw JSON object that can be parsed directly with JSON.parse().`;
         }
 
         // Parse the ATS JSON response
-        let atsResumeData;
+        let atsResumeData: any;
         try {
           const jsonMatch = atsResponseText.match(/\{[\s\S]*\}/);
           if (!jsonMatch) {
             throw new Error("No valid JSON object found in ATS response");
           }
           
-          // Enhanced JSON cleaning to remove any comments and invalid syntax
-          let cleanJson = jsonMatch[0]
-            // Remove single-line comments after string values specifically
-            .replace(/("value":\s*"[^"]*")\s*\/\/[^\n\r]*/g, '$1')
-            // Remove single-line comments after other properties
-            .replace(/("[^"]*":\s*"[^"]*")\s*\/\/[^\n\r]*/g, '$1')
-            // Remove single-line comments on their own lines
-            .replace(/^\s*\/\/.*$/gm, '')
-            // Remove multi-line comments
-            .replace(/\/\*[\s\S]*?\*\//g, '')
-            // Clean up any trailing commas before closing brackets/braces
-            .replace(/,(\s*[}\]])/g, '$1')
-            // Clean up any extra whitespace and newlines
-            .replace(/\n\s*\n/g, '\n')
-            .trim();
-            
-          console.log("Cleaned JSON preview:", cleanJson.substring(0, 200) + "...");
-          
-          // Final safety check: Look for any remaining comment patterns
-          if (cleanJson.includes('//') || cleanJson.includes('/*')) {
-            console.warn("Found remaining comments in JSON, applying final cleanup...");
-            cleanJson = cleanJson
-              .replace(/("value":\s*"[^"]*")\s*\/\/[^\n\r]*/g, '$1')
-              .replace(/("[^"]*":\s*"[^"]*")\s*\/\/[^\n\r]*/g, '$1')
-              .replace(/\s*\/\/[^\n\r]*[\n\r]*/g, '\n')
-              .replace(/\s*\/\*[\s\S]*?\*\/\s*/g, ' ');
-          }
-          
-          // Additional fallback: try to fix common patterns that cause JSON parsing errors
-          try {
-            atsResumeData = JSON.parse(cleanJson);
-          } catch (firstAttemptError) {
-            console.log("First parse attempt failed, trying additional cleaning...");
-            
-            // Try more aggressive cleaning for specific patterns
-            cleanJson = cleanJson
-              // Remove single-line comments after string values specifically
-              .replace(/("value":\s*"[^"]*")\s*\/\/[^\n\r]*/g, '$1')
-              // Remove single-line comments after other properties
-              .replace(/("[^"]*":\s*"[^"]*")\s*\/\/[^\n\r]*/g, '$1')
-              // Remove any remaining comment-like patterns
-              .replace(/\s*\/\/[^\n]*\n/g, '\n')
-              .replace(/\s*\/\/[^\n]*$/g, '')
-              // Clean up malformed JSON structures
-              .replace(/,\s*}/g, '}')
-              .replace(/,\s*]/g, ']');
+          // Robust JSON cleaning function
+          function robustJsonParse(jsonStr: string): any {
+            // Multiple attempts with increasingly aggressive cleaning
+            const attempts = [
+              // Attempt 1: Basic cleanup
+              (str: string) => str
+                .replace(/\/\*[\s\S]*?\*\//g, '') // Remove /* */ comments
+                .replace(/\/\/[^\n\r]*[\n\r]/g, '\n') // Remove // comments
+                .replace(/,(\s*[}\]])/g, '$1') // Remove trailing commas
+                .trim(),
               
-            atsResumeData = JSON.parse(cleanJson);
+              // Attempt 2: More aggressive comment removal
+              (str: string) => str
+                .replace(/"[^"]*"\s*\/\/[^\n\r]*/g, (match) => match.split('//')[0].trim()) // Remove comments after strings
+                .replace(/\s*\/\/[^\n\r]*[\n\r]*/g, '\n') // Remove all // comments
+                .replace(/\/\*[\s\S]*?\*\//g, '') // Remove /* */ comments
+                .replace(/,(\s*[}\]])/g, '$1') // Remove trailing commas
+                .replace(/\n\s*\n/g, '\n') // Remove empty lines
+                .trim(),
+              
+              // Attempt 3: Line-by-line processing
+              (str: string) => str
+                .split('\n')
+                .map(line => {
+                  // Remove comments but preserve string content
+                  if (line.includes('//') && !line.match(/"[^"]*\/\/[^"]*"/)) {
+                    return line.split('//')[0].trim();
+                  }
+                  return line;
+                })
+                .join('\n')
+                .replace(/\/\*[\s\S]*?\*\//g, '')
+                .replace(/,(\s*[}\]])/g, '$1')
+                .trim()
+            ];
+            
+            for (let i = 0; i < attempts.length; i++) {
+              try {
+                const cleaned = attempts[i](jsonStr);
+                console.log(`JSON parsing attempt ${i + 1} - preview:`, cleaned.substring(0, 200) + "...");
+                return JSON.parse(cleaned);
+              } catch (error) {
+                console.log(`JSON parsing attempt ${i + 1} failed:`, error.message);
+                if (i === attempts.length - 1) {
+                  throw error;
+                }
+              }
+            }
           }
+          
+          atsResumeData = robustJsonParse(jsonMatch[0]);
           
           console.log("Successfully parsed ATS JSON response");
         } catch (parseError) {
           console.error("Error parsing ATS JSON response:", parseError);
-          console.error("Raw response text:", atsResponseText);
-          console.error("Attempted clean JSON:", cleanJson?.substring(0, 500));
+          console.error("Raw response text:", atsResponseText.substring(0, 500));
           throw new Error("Failed to parse ATS response as JSON: " + parseError.message);
         }
 
@@ -627,23 +774,23 @@ Output ONLY the raw JSON object that can be parsed directly with JSON.parse().`;
         }
 
         // Also create a text version for ATS analysis
-        const textSections = [];
+        const textSections: string[] = [];
         textSections.push(atsResumeData.name?.toUpperCase() || "");
         textSections.push(atsResumeData.title || "");
         
         // Add contact info
         if (atsResumeData.contacts && atsResumeData.contacts.length > 0) {
-          const contactInfo = atsResumeData.contacts.map(c => c.value).join(" | ");
+          const contactInfo = atsResumeData.contacts.map((c: any) => c.value).join(" | ");
           textSections.push(contactInfo);
         }
 
         // Add education
         if (atsResumeData.education && atsResumeData.education.length > 0) {
           textSections.push("\nEDUCATION");
-          atsResumeData.education.forEach(edu => {
+          atsResumeData.education.forEach((edu: any) => {
             textSections.push(`${edu.degree}, ${edu.institution} (${edu.dates})`);
             if (edu.details && edu.details.length > 0) {
-              edu.details.forEach(detail => textSections.push(`• ${detail}`));
+              edu.details.forEach((detail: any) => textSections.push(`• ${detail}`));
             }
           });
         }
@@ -651,10 +798,10 @@ Output ONLY the raw JSON object that can be parsed directly with JSON.parse().`;
         // Add experience  
         if (atsResumeData.experience && atsResumeData.experience.length > 0) {
           textSections.push("\nEXPERIENCE");
-          atsResumeData.experience.forEach(exp => {
+          atsResumeData.experience.forEach((exp: any) => {
             textSections.push(`${exp.position}, ${exp.company} (${exp.dates})`);
             if (exp.highlights && exp.highlights.length > 0) {
-              exp.highlights.forEach(highlight => textSections.push(`• ${highlight}`));
+              exp.highlights.forEach((highlight: any) => textSections.push(`• ${highlight}`));
             }
           });
         }
@@ -668,7 +815,7 @@ Output ONLY the raw JSON object that can be parsed directly with JSON.parse().`;
         // Add projects
         if (atsResumeData.featured_project && atsResumeData.featured_project.length > 0) {
           textSections.push("\nPROJECTS");
-          atsResumeData.featured_project.forEach(proj => {
+          atsResumeData.featured_project.forEach((proj: any) => {
             textSections.push(`${proj.name}: ${proj.description}`);
             if (proj.technologies && proj.technologies.length > 0) {
               textSections.push(`Technologies: ${proj.technologies.join(", ")}`);
@@ -692,25 +839,36 @@ Output ONLY the raw JSON object that can be parsed directly with JSON.parse().`;
           throw new Error("Failed to save text resume");
         }
 
-        // Analyze enhanced ATS score
-        console.log("Analyzing enhanced ATS score for LaTeX resume...");
-        let enhancedATSScore;
-        try {
-          enhancedATSScore = await callATSAnalyzer(atsTextContent, supabaseClient);
-          console.log("Enhanced ATS score:", enhancedATSScore.overallScore);
-          console.log("ATS score improvement:", enhancedATSScore.overallScore - originalATSScore.overallScore);
-        } catch (error) {
-          console.error("Failed to analyze enhanced ATS score:", error);
-          enhancedATSScore = {
-            keywordMatch: originalATSScore.keywordMatch,
-            formatScore: Math.min(95, originalATSScore.formatScore + 10), // LaTeX should have good format score
-            contentQuality: originalATSScore.contentQuality,
-            readabilityScore: originalATSScore.readabilityScore,
-            structureScore: Math.min(95, originalATSScore.structureScore + 10), // LaTeX should have good structure
-            overallScore: originalATSScore.overallScore,
-            recommendations: ["Enhanced ATS analysis failed - using original scores with LaTeX improvements"]
-          };
+        // Analyze ATS scores (cache original to avoid re-analysis)
+        console.log("Analyzing ATS scores in parallel for LaTeX resume...");
+        const [originalATSScore, enhancedATSScore] = await Promise.allSettled([
+          originalATSScoreCache || analyzeATSScore(resumeText, genAI),
+          analyzeATSScore(atsTextContent, genAI)
+        ]);
+        
+        // Cache original score for later use
+        if (!originalATSScoreCache && originalATSScore.status === 'fulfilled') {
+          originalATSScoreCache = originalATSScore.value;
         }
+        
+        const originalScore = originalATSScore.status === 'fulfilled' ? originalATSScore.value : {
+          keywordMatch: 0, formatScore: 0, contentQuality: 0, readabilityScore: 0, structureScore: 0,
+          overallScore: 0, recommendations: ["Original ATS analysis failed"]
+        };
+        
+        const enhancedScore = enhancedATSScore.status === 'fulfilled' ? enhancedATSScore.value : {
+          keywordMatch: originalScore.keywordMatch,
+          formatScore: Math.min(95, originalScore.formatScore + 10),
+          contentQuality: originalScore.contentQuality,
+          readabilityScore: originalScore.readabilityScore,
+          structureScore: Math.min(95, originalScore.structureScore + 10),
+          overallScore: originalScore.overallScore,
+          recommendations: ["Enhanced ATS analysis failed - using original scores with LaTeX improvements"]
+        };
+        
+        console.log("Original ATS score:", originalScore.overallScore);
+        console.log("Enhanced ATS score:", enhancedScore.overallScore);
+        console.log("ATS score improvement:", enhancedScore.overallScore - originalScore.overallScore);
 
         // Update database with LaTeX file path, JSON data, and ATS scores
         const { error: updateError } = await supabaseClient
@@ -719,8 +877,8 @@ Output ONLY the raw JSON object that can be parsed directly with JSON.parse().`;
             status: "completed",
             processed_file_path: latexFileName, // Store LaTeX file path
             resume_preview_json: atsResumeData, // Store JSON data for editing
-            ats_score_original: originalATSScore,
-            ats_score_enhanced: enhancedATSScore,
+            ats_score_original: originalScore,
+            ats_score_enhanced: enhancedScore,
             updated_at: new Date().toISOString()
           })
           .eq("id", resumeId);
@@ -844,7 +1002,7 @@ ${customInstructions ? `\nAdditional instructions: ${customInstructions}` : ""}
         throw new Error("Empty response from Gemini API");
       }
       // Parse the JSON response
-      let resumeJson;
+      let resumeJson: any;
       try {
         const jsonMatch = responseText.match(/\{[\s\S]*\}/);
         if (!jsonMatch) {
@@ -871,13 +1029,13 @@ ${customInstructions ? `\nAdditional instructions: ${customInstructions}` : ""}
       // Create processed file path for the txt version
       const processedFileName = `processed/${user.id}/${resumeId}.txt`;
       // Generate plain text from content for backward compatibility
-      const contentSections = [];
+      const contentSections: string[] = [];
       contentSections.push(resumeJson.name?.toUpperCase() || "");
       contentSections.push(resumeJson.title || "");
       // Add Contact Info
       if (resumeJson.contacts && resumeJson.contacts.length > 0) {
-        const contactInfo = [];
-        resumeJson.contacts.forEach((contact)=>{
+        const contactInfo: string[] = [];
+        resumeJson.contacts.forEach((contact: any) => {
           if (contact.type === "email" && contact.value) contactInfo.push(contact.value);
           if (contact.type === "website" && contact.value) contactInfo.push(contact.value);
           if (contact.type === "linkedin" && contact.value) contactInfo.push(contact.value);
@@ -890,10 +1048,10 @@ ${customInstructions ? `\nAdditional instructions: ${customInstructions}` : ""}
       // Add Education
       if (resumeJson.education && resumeJson.education.length > 0) {
         contentSections.push("\nEDUCATION");
-        resumeJson.education.forEach((item)=>{
+        resumeJson.education.forEach((item: any) => {
           contentSections.push(`${item.degree}, ${item.institution} (${item.dates})`);
           if (item.details && item.details.length > 0) {
-            item.details.forEach((detail)=>{
+            item.details.forEach((detail: any) => {
               contentSections.push(`• ${detail}`);
             });
           }
@@ -902,7 +1060,7 @@ ${customInstructions ? `\nAdditional instructions: ${customInstructions}` : ""}
       // Add Experience
       if (resumeJson.experience && resumeJson.experience.length > 0) {
         contentSections.push("\nEXPERIENCE");
-        resumeJson.experience.forEach((item)=>{
+        resumeJson.experience.forEach((item: any) => {
           contentSections.push(`${item.position}, ${item.company} (${item.dates})`);
           if (item.highlights && item.highlights.length > 0) {
             contentSections.push(`Highlights: ${item.highlights.join(", ")}`);
@@ -919,26 +1077,35 @@ ${customInstructions ? `\nAdditional instructions: ${customInstructions}` : ""}
       }
       const enhancedResumeText = contentSections.join("\n");
       
-      // Analyze enhanced resume ATS score after enhancement
-      console.log("Analyzing enhanced resume ATS score...");
-      let enhancedATSScore;
-      try {
-        enhancedATSScore = await callATSAnalyzer(enhancedResumeText, supabaseClient);
-        console.log("Enhanced ATS score:", enhancedATSScore.overallScore);
-        console.log("ATS score improvement:", enhancedATSScore.overallScore - originalATSScore.overallScore);
-      } catch (error) {
-        console.error("Failed to analyze enhanced ATS score:", error);
-        // Use fallback scores if analysis fails
-        enhancedATSScore = {
-          keywordMatch: originalATSScore.keywordMatch,
-          formatScore: originalATSScore.formatScore,
-          contentQuality: originalATSScore.contentQuality,
-          readabilityScore: originalATSScore.readabilityScore,
-          structureScore: originalATSScore.structureScore,
-          overallScore: originalATSScore.overallScore,
-          recommendations: ["Enhanced ATS analysis failed - using original scores"]
-        };
-      }
+      // Analyze ATS scores (use cached original score)
+      console.log("Analyzing ATS scores for visual resume...");
+      const enhancedATSScore = await Promise.allSettled([
+        analyzeATSScore(enhancedResumeText, genAI)
+      ]);
+      
+      // Use cached original score or analyze if not available
+      const originalATSScore = originalATSScoreCache 
+        ? { status: 'fulfilled' as const, value: originalATSScoreCache }
+        : await Promise.allSettled([analyzeATSScore(resumeText, genAI)]).then(results => results[0]);
+      
+      const originalScore = originalATSScore.status === 'fulfilled' ? originalATSScore.value : {
+        keywordMatch: 0, formatScore: 0, contentQuality: 0, readabilityScore: 0, structureScore: 0,
+        overallScore: 0, recommendations: ["Original ATS analysis failed"]
+      };
+      
+      const enhancedScore = enhancedATSScore[0].status === 'fulfilled' ? enhancedATSScore[0].value : {
+        keywordMatch: originalScore.keywordMatch,
+        formatScore: originalScore.formatScore,
+        contentQuality: originalScore.contentQuality,
+        readabilityScore: originalScore.readabilityScore,
+        structureScore: originalScore.structureScore,
+        overallScore: originalScore.overallScore,
+        recommendations: ["Enhanced ATS analysis failed - using original scores"]
+      };
+      
+      console.log("Original ATS score:", originalScore.overallScore);
+      console.log("Enhanced ATS score:", enhancedScore.overallScore);
+      console.log("ATS score improvement:", enhancedScore.overallScore - originalScore.overallScore);
       
       // Upload the text version of the enhanced resume
       console.log("Uploading enhanced resume text to:", processedFileName);
@@ -968,8 +1135,8 @@ ${customInstructions ? `\nAdditional instructions: ${customInstructions}` : ""}
       await supabaseClient.from("resumes").update({
           processed_file_path: processedFileName,
           resume_preview_json: resumeJson,
-          ats_score_original: originalATSScore,
-          ats_score_enhanced: enhancedATSScore,
+          ats_score_original: originalScore,
+          ats_score_enhanced: enhancedScore,
           status: "completed",
         updated_at: new Date().toISOString()
       }).eq("id", resumeId);

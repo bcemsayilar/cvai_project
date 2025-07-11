@@ -70,25 +70,60 @@ Guidelines:
           parts: [{ text: `${systemPrompt}\n\nAnalyze this resume for ATS compatibility:\n\n${resumeText}${jobDescription ? `\n\nTarget job description (for keyword matching):\n${jobDescription}` : ''}` }]
         }
       ],
-      config: {
-        temperature: 0.3, // Lower temperature for consistent scoring
+      generationConfig: {
+        temperature: 0.3,
         maxOutputTokens: 1500,
-        responseMimeType: "application/json"
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "object",
+          properties: {
+            keywordMatch: { type: "integer", minimum: 0, maximum: 100 },
+            formatScore: { type: "integer", minimum: 0, maximum: 100 },
+            contentQuality: { type: "integer", minimum: 0, maximum: 100 },
+            readabilityScore: { type: "integer", minimum: 0, maximum: 100 },
+            structureScore: { type: "integer", minimum: 0, maximum: 100 },
+            overallScore: { type: "integer", minimum: 0, maximum: 100 },
+            recommendations: { 
+              type: "array", 
+              items: { type: "string" },
+              minItems: 3,
+              maxItems: 5
+            }
+          },
+          required: ["keywordMatch", "formatScore", "contentQuality", "readabilityScore", "structureScore", "overallScore", "recommendations"]
+        }
       }
     });
 
-    const responseText = chatCompletion.text || "";
+    // Extract response text with fallback methods
+    let responseText = "";
+    
+    // Try different response paths
+    if (chatCompletion.text) {
+      responseText = chatCompletion.text;
+    } else if (chatCompletion.candidates?.[0]?.content?.parts?.[0]?.text) {
+      responseText = chatCompletion.candidates[0].content.parts[0].text;
+    } else if (chatCompletion.response?.text) {
+      responseText = chatCompletion.response.text;
+    }
+    
     if (!responseText) {
+      console.error("EMPTY RESPONSE - Full object:", JSON.stringify(chatCompletion, null, 2));
       throw new Error("Empty response from Gemini API");
     }
 
-    // Parse JSON response
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error("No valid JSON object found in the response");
+    // Parse JSON response directly (should be valid with responseSchema)
+    let analysisResult;
+    try {
+      analysisResult = JSON.parse(responseText);
+    } catch (e) {
+      // Fallback: try to extract JSON if parsing fails
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error("No valid JSON object found in the response");
+      }
+      analysisResult = JSON.parse(jsonMatch[0]);
     }
-
-    const analysisResult = JSON.parse(jsonMatch[0]);
     
     // Validate and ensure all required fields
     const result: ATSCriteria = {

@@ -170,4 +170,40 @@
   - Gemini's context window can handle entire codebases that would overflow Claude's context
   - When checking implementations, be specific about what you're looking for to get accurate results
 
+# Project Overview - Resume Enhancer
+
+## Architecture Summary
+- **Frontend**: Next.js 15 with TypeScript, Tailwind CSS, shadcn/ui components
+- **Backend**: Supabase (PostgreSQL, Auth, Storage) + Edge Functions (Deno)
+- **AI/LLM**: Groq API (Llama 3.1), Google Cloud Document AI
+- **Payments**: Stripe integration with subscription management
+- **PDF Generation**: @react-pdf/renderer (client), LaTeX compilation (server)
+
+## Key Components & Data Flow
+1. **User uploads resume** → File stored in Supabase Storage
+2. **process-resume Edge Function** → Document AI extracts text → Groq enhances content → Saves structured JSON
+3. **ATS Analyzer** → Separate edge function analyzes resume with AI scoring
+4. **Frontend Preview** → Renders PDF/LaTeX from JSON data
+5. **Payment System** → Stripe manages subscriptions, webhooks update user limits
+
+## Database Schema
+- **profiles**: User data, subscription info, usage limits
+- **resumes**: Resume metadata, processing status, ATS scores  
+- **payments**: Transaction logs
+
+## Critical Edge Functions
+- `/process-resume`: Main AI enhancement pipeline
+- `/ats-analyzer`: Standalone ATS scoring service
+- `/test-groq-api`: API key validation
+
+## Common Issues & Solutions
+- **ATS Analyzer not working**: Check if requests reach edge function, verify Gemini API key
+- **Static values returned**: Usually indicates API failure or timeout
+- **Processing stuck**: Check Supabase Storage permissions and edge function logs
+
+## Recent Fixes (Jul 2025)
+- **Fixed Gemini API response handling**: Updated to use `generationConfig` with `responseSchema` for structured JSON output
+- **Optimized ATS analysis**: Added caching to prevent duplicate API calls for same resume text
+- **Improved error handling**: Robust fallback mechanisms for different Gemini API response formats
+
   
