@@ -131,27 +131,27 @@ export const POST = withCSRFProtection(async (req: Request) => {
           title: updatedContent.title || '',
           location: updatedContent.contact?.location || '',
           contacts: [
-            ...(updatedContent.contact?.email ? [{ type: 'email', value: updatedContent.contact.email }] : []),
-            ...(updatedContent.contact?.phone ? [{ type: 'phone', value: updatedContent.contact.phone }] : []),
-            ...(updatedContent.contact?.linkedin ? [{ type: 'linkedin', value: updatedContent.contact.linkedin }] : []),
-            ...(updatedContent.contact?.github ? [{ type: 'github', value: updatedContent.contact.github }] : []),
-            ...(updatedContent.contact?.website ? [{ type: 'website', value: updatedContent.contact.website }] : []),
+            ...(updatedContent.contact?.email && updatedContent.contact.email.trim() && updatedContent.contact.email !== 'Not provided' ? [{ type: 'email', value: updatedContent.contact.email }] : []),
+            ...(updatedContent.contact?.phone && updatedContent.contact.phone.trim() && updatedContent.contact.phone !== 'Not provided' ? [{ type: 'phone', value: updatedContent.contact.phone }] : []),
+            ...(updatedContent.contact?.linkedin && updatedContent.contact.linkedin.trim() && updatedContent.contact.linkedin !== 'Not provided' ? [{ type: 'linkedin', value: updatedContent.contact.linkedin }] : []),
+            ...(updatedContent.contact?.github && updatedContent.contact.github.trim() && updatedContent.contact.github !== 'Not provided' ? [{ type: 'github', value: updatedContent.contact.github }] : []),
+            ...(updatedContent.contact?.website && updatedContent.contact.website.trim() && updatedContent.contact.website !== 'Not provided' ? [{ type: 'website', value: updatedContent.contact.website }] : []),
           ],
           education: updatedContent.education?.map((edu: any) => ({
             degree: edu.degree || '',
             institution: edu.institution || '',
             location: edu.location || '',
             dates: edu.dates || '',
-            details: edu.details || []
+            details: (edu.details || []).filter((detail: any) => detail && detail.trim() && detail !== 'Not provided')
           })) || [],
           experience: updatedContent.experience?.map((exp: any) => ({
             position: exp.position || '',
             company: exp.company || '',
             location: exp.location || '',
             dates: exp.dates || '',
-            highlights: exp.highlights || []
+            highlights: (exp.highlights || []).filter((highlight: any) => highlight && highlight.trim() && highlight !== 'Not provided')
           })) || [],
-          skills: updatedContent.skills || [],
+          skills: (updatedContent.skills || []).filter((skill: any) => skill && skill.trim() && skill !== 'Not provided'),
           featured_project: updatedContent.projects?.map((proj: any) => ({
             name: proj.name || '',
             description: proj.description || '',

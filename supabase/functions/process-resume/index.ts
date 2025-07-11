@@ -20,6 +20,40 @@ const corsHeaders = {
 };
 
 /**
+ * Clean resume data by removing empty fields and "Not provided" values
+ */
+function cleanResumeData(data: any): any {
+  if (!data || typeof data !== 'object') return data;
+  
+  if (Array.isArray(data)) {
+    return data.filter(item => item !== null && item !== undefined && item !== '' && item !== 'Not provided')
+               .map(item => cleanResumeData(item));
+  }
+  
+  const cleaned: any = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (value === null || value === undefined || value === '' || value === 'Not provided') {
+      continue; // Skip empty values
+    }
+    
+    if (typeof value === 'object') {
+      const cleanedValue = cleanResumeData(value);
+      if (Array.isArray(cleanedValue) && cleanedValue.length > 0) {
+        cleaned[key] = cleanedValue;
+      } else if (!Array.isArray(cleanedValue) && Object.keys(cleanedValue).length > 0) {
+        cleaned[key] = cleanedValue;
+      }
+    } else if (typeof value === 'string' && value.trim()) {
+      cleaned[key] = value.trim();
+    } else if (typeof value !== 'string') {
+      cleaned[key] = value;
+    }
+  }
+  
+  return cleaned;
+}
+
+/**
  * Analyzes resume text and provides ATS score (0-100) with detailed breakdown
  */
 async function analyzeATSScore(resumeText: string, genAI: any, jobDescription?: string): Promise<ATSCriteria> {
@@ -639,10 +673,10 @@ CRITICAL REQUIREMENTS - FOLLOW EXACTLY:
 2. NEVER use // comments anywhere in the JSON
 3. NEVER use /* comments */ anywhere in the JSON
 4. NEVER add explanatory text outside the JSON
-5. For incomplete/missing data, use "Not provided" or empty strings - NEVER add comments
+5. For incomplete/missing data, use empty strings or omit the field entirely - NEVER add comments
 6. The JSON must be parseable by JSON.parse() without errors
 7. Double-check that NO COMMENTS exist in your output before submitting
-8. If a field is incomplete or unclear, use placeholder text like "Not provided" instead of comments
+8. If a field is incomplete or unclear, use empty strings or omit the field entirely instead of comments
 9. ABSOLUTELY NO COMMENT SYNTAX (// or /* */) anywhere in the response
 10. Test your JSON mentally with JSON.parse() before responding
 
@@ -653,9 +687,8 @@ WRONG EXAMPLES - NEVER DO THIS:
 "value": "github.com" // GitHub link not provided
 
 CORRECT EXAMPLES - DO THIS INSTEAD:
-"linkedin": "linkedin.com/in/not-provided"
-"github": "Not provided"
-"value": "Not provided"
+"linkedin": ""
+"github": ""
 "value": ""
 
 REMEMBER: Every single character in your response must be valid JSON. No exceptions.
@@ -744,9 +777,9 @@ Output ONLY the raw JSON object that can be parsed directly with JSON.parse().`;
             }
           }
           
-          atsResumeData = robustJsonParse(jsonMatch[0]);
+          atsResumeData = cleanResumeData(robustJsonParse(jsonMatch[0]));
           
-          console.log("Successfully parsed ATS JSON response");
+          console.log("Successfully parsed and cleaned ATS JSON response");
         } catch (parseError) {
           console.error("Error parsing ATS JSON response:", parseError);
           console.error("Raw response text:", atsResponseText.substring(0, 500));
@@ -780,8 +813,11 @@ Output ONLY the raw JSON object that can be parsed directly with JSON.parse().`;
         
         // Add contact info
         if (atsResumeData.contacts && atsResumeData.contacts.length > 0) {
-          const contactInfo = atsResumeData.contacts.map((c: any) => c.value).join(" | ");
-          textSections.push(contactInfo);
+          const validContacts = atsResumeData.contacts.filter((c: any) => c.value && c.value.trim() && c.value !== 'Not provided');
+          if (validContacts.length > 0) {
+            const contactInfo = validContacts.map((c: any) => c.value).join(" | ");
+            textSections.push(contactInfo);
+          }
         }
 
         // Add education
@@ -790,7 +826,8 @@ Output ONLY the raw JSON object that can be parsed directly with JSON.parse().`;
           atsResumeData.education.forEach((edu: any) => {
             textSections.push(`${edu.degree}, ${edu.institution} (${edu.dates})`);
             if (edu.details && edu.details.length > 0) {
-              edu.details.forEach((detail: any) => textSections.push(`• ${detail}`));
+              const validDetails = edu.details.filter((detail: any) => detail && detail.trim() && detail !== 'Not provided');
+              validDetails.forEach((detail: any) => textSections.push(`• ${detail}`));
             }
           });
         }
@@ -801,15 +838,19 @@ Output ONLY the raw JSON object that can be parsed directly with JSON.parse().`;
           atsResumeData.experience.forEach((exp: any) => {
             textSections.push(`${exp.position}, ${exp.company} (${exp.dates})`);
             if (exp.highlights && exp.highlights.length > 0) {
-              exp.highlights.forEach((highlight: any) => textSections.push(`• ${highlight}`));
+              const validHighlights = exp.highlights.filter((highlight: any) => highlight && highlight.trim() && highlight !== 'Not provided');
+              validHighlights.forEach((highlight: any) => textSections.push(`• ${highlight}`));
             }
           });
         }
 
         // Add skills
         if (atsResumeData.skills && atsResumeData.skills.length > 0) {
-          textSections.push("\nSKILLS");
-          textSections.push(atsResumeData.skills.join(", "));
+          const validSkills = atsResumeData.skills.filter((skill: any) => skill && skill.trim() && skill !== 'Not provided');
+          if (validSkills.length > 0) {
+            textSections.push("\nSKILLS");
+            textSections.push(validSkills.join(", "));
+          }
         }
 
         // Add projects
@@ -818,7 +859,10 @@ Output ONLY the raw JSON object that can be parsed directly with JSON.parse().`;
           atsResumeData.featured_project.forEach((proj: any) => {
             textSections.push(`${proj.name}: ${proj.description}`);
             if (proj.technologies && proj.technologies.length > 0) {
-              textSections.push(`Technologies: ${proj.technologies.join(", ")}`);
+              const validTechnologies = proj.technologies.filter((tech: any) => tech && tech.trim() && tech !== 'Not provided');
+              if (validTechnologies.length > 0) {
+                textSections.push(`Technologies: ${validTechnologies.join(", ")}`);
+              }
             }
           });
         }
@@ -1008,8 +1052,8 @@ ${customInstructions ? `\nAdditional instructions: ${customInstructions}` : ""}
         if (!jsonMatch) {
           throw new Error("No valid JSON object found in the response");
         }
-        resumeJson = JSON.parse(jsonMatch[0]);
-        console.log("Successfully parsed JSON response");
+        resumeJson = cleanResumeData(JSON.parse(jsonMatch[0]));
+        console.log("Successfully parsed and cleaned JSON response");
       } catch (parseError) {
         console.error("Error parsing JSON response:", parseError);
         throw new Error("Failed to parse AI response as JSON: " + parseError.message);
@@ -1036,14 +1080,22 @@ ${customInstructions ? `\nAdditional instructions: ${customInstructions}` : ""}
       if (resumeJson.contacts && resumeJson.contacts.length > 0) {
         const contactInfo: string[] = [];
         resumeJson.contacts.forEach((contact: any) => {
-          if (contact.type === "email" && contact.value) contactInfo.push(contact.value);
-          if (contact.type === "website" && contact.value) contactInfo.push(contact.value);
-          if (contact.type === "linkedin" && contact.value) contactInfo.push(contact.value);
-          if (contact.type === "github" && contact.value) contactInfo.push(contact.value);
+          if (contact.type === "email" && contact.value && contact.value.trim() && contact.value !== 'Not provided') {
+            contactInfo.push(contact.value);
+          }
+          if (contact.type === "website" && contact.value && contact.value.trim() && contact.value !== 'Not provided') {
+            contactInfo.push(contact.value);
+          }
+          if (contact.type === "linkedin" && contact.value && contact.value.trim() && contact.value !== 'Not provided') {
+            contactInfo.push(contact.value);
+          }
+          if (contact.type === "github" && contact.value && contact.value.trim() && contact.value !== 'Not provided') {
+            contactInfo.push(contact.value);
+          }
         });
         if (contactInfo.length > 0) {
           contentSections.push(contactInfo.join(" | "));
-      }
+        }
       }
       // Add Education
       if (resumeJson.education && resumeJson.education.length > 0) {
@@ -1051,7 +1103,8 @@ ${customInstructions ? `\nAdditional instructions: ${customInstructions}` : ""}
         resumeJson.education.forEach((item: any) => {
           contentSections.push(`${item.degree}, ${item.institution} (${item.dates})`);
           if (item.details && item.details.length > 0) {
-            item.details.forEach((detail: any) => {
+            const validDetails = item.details.filter((detail: any) => detail && detail.trim() && detail !== 'Not provided');
+            validDetails.forEach((detail: any) => {
               contentSections.push(`• ${detail}`);
             });
           }
@@ -1063,17 +1116,26 @@ ${customInstructions ? `\nAdditional instructions: ${customInstructions}` : ""}
         resumeJson.experience.forEach((item: any) => {
           contentSections.push(`${item.position}, ${item.company} (${item.dates})`);
           if (item.highlights && item.highlights.length > 0) {
-            contentSections.push(`Highlights: ${item.highlights.join(", ")}`);
+            const validHighlights = item.highlights.filter((highlight: any) => highlight && highlight.trim() && highlight !== 'Not provided');
+            if (validHighlights.length > 0) {
+              contentSections.push(`Highlights: ${validHighlights.join(", ")}`);
+            }
           }
           if (item.tags && item.tags.length > 0) {
-            contentSections.push(`Tags: ${item.tags.join(", ")}`);
+            const validTags = item.tags.filter((tag: any) => tag && tag.trim() && tag !== 'Not provided');
+            if (validTags.length > 0) {
+              contentSections.push(`Tags: ${validTags.join(", ")}`);
+            }
           }
         });
       }
       // Add Skills
       if (resumeJson.skills && resumeJson.skills.length > 0) {
-        contentSections.push("\nSKILLS");
-        contentSections.push(resumeJson.skills.join(", "));
+        const validSkills = resumeJson.skills.filter((skill: any) => skill && skill.trim() && skill !== 'Not provided');
+        if (validSkills.length > 0) {
+          contentSections.push("\nSKILLS");
+          contentSections.push(validSkills.join(", "));
+        }
       }
       const enhancedResumeText = contentSections.join("\n");
       
