@@ -38,6 +38,7 @@ export default function ResumeEnhancer() {
   const [resumeId, setResumeId] = useState<string | null>(null)
   const [filePath, setFilePath] = useState<string | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [processingStage, setProcessingStage] = useState<string>("")
   const [isComplete, setIsComplete] = useState(false)
   const [processingError, setProcessingError] = useState<string | null>(null)
   const [customInstructions, setCustomInstructions] = useState("")
@@ -51,7 +52,7 @@ export default function ResumeEnhancer() {
     grammarFix: true,
     styleOnly: false,
   })
-  const [resumeFormat, setResumeFormat] = useState<"visual" | "ats">("visual")
+  const [resumeFormat, setResumeFormat] = useState<"visual" | "ats">("ats")
   const [isDownloading, setIsDownloading] = useState<boolean>(false)
   const [downloadFormat, setDownloadFormat] = useState<"txt" | null>(null)
   const [atsScoreOriginal, setAtsScoreOriginal] = useState<ATSScore | null>(null)
@@ -121,7 +122,10 @@ export default function ResumeEnhancer() {
         },
         (payload) => {
 
-          if (payload.new.status === "completed") {
+          if (payload.new.status === "processing") {
+            setProcessingStage("AI is working on your resume...")
+          } else if (payload.new.status === "completed") {
+            setProcessingStage("Finalizing your enhanced resume...")
             setIsProcessing(false)
             setIsComplete(true)
             setProcessedFilePath(payload.new.processed_file_path)
@@ -211,6 +215,7 @@ export default function ResumeEnhancer() {
     // Reset states when a new file is uploaded
     setIsComplete(false)
     setIsProcessing(false)
+    setProcessingStage("")
     setProcessedFilePath(null)
     setProcessingError(null)
     setAtsScoreOriginal(null)
@@ -273,6 +278,7 @@ export default function ResumeEnhancer() {
 
     setIsProcessing(true)
     setProcessingError(null)
+    setProcessingStage("Preparing your resume for enhancement...")
 
     // Get selected enhancement styles as an array
     const enhancementStyles = Object.entries(selectedStyles)
@@ -282,6 +288,8 @@ export default function ResumeEnhancer() {
     try {
       console.log("Calling process-resume function with styles:", enhancementStyles)
       console.log("Resume format selected:", resumeFormat)
+      
+      setProcessingStage("Analyzing your resume content...")
 
       // Call the Supabase Edge Function to process the resume
       const { data, error } = await supabase.functions.invoke("process-resume", {
@@ -304,6 +312,7 @@ export default function ResumeEnhancer() {
       }
 
       console.log("Process resume function called successfully")
+      setProcessingStage("Enhancing your resume with AI...")
 
       // The processing status will be updated via the real-time subscription
       // But we'll set a timeout to check the status in case real-time updates aren't working
@@ -394,6 +403,7 @@ export default function ResumeEnhancer() {
     setFilePath(null)
     setIsComplete(false)
     setIsProcessing(false)
+    setProcessingStage("")
     setProcessedFilePath(null)
     setProcessingError(null)
     setAtsScoreOriginal(null)
@@ -409,7 +419,7 @@ export default function ResumeEnhancer() {
     })
     
     // Reset format to default
-    setResumeFormat("visual")
+    setResumeFormat("ats")
     
     // Clear custom instructions
     setCustomInstructions("")
@@ -847,38 +857,6 @@ export default function ResumeEnhancer() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div 
                         className={`group p-6 rounded-2xl border-2 cursor-pointer transition-all duration-300 hover:shadow-lg ${
-                          resumeFormat === "visual" 
-                            ? "border-teal-500 bg-gradient-to-br from-teal-50 to-emerald-50 dark:from-teal-900/20 dark:to-emerald-900/20 dark:border-teal-400 shadow-lg" 
-                            : "border-gray-200 dark:border-gray-700 hover:border-teal-300 dark:hover:border-teal-600 bg-white dark:bg-gray-800"
-                        }`}
-                        onClick={() => setResumeFormat("visual")}
-                      >
-                        <div className="flex items-start space-x-4">
-                          <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
-                            resumeFormat === "visual" 
-                              ? "border-teal-500 bg-teal-500" 
-                              : "border-gray-300 dark:border-gray-600 group-hover:border-teal-400"
-                          }`}>
-                            {resumeFormat === "visual" && (
-                              <div className="w-2.5 h-2.5 bg-white rounded-full"></div>
-                            )}
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-2 mb-2">
-                              <Sparkles className={`h-5 w-5 ${resumeFormat === "visual" ? "text-teal-600 dark:text-teal-400" : "text-gray-400 group-hover:text-teal-500"}`} />
-                              <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Visual Design</h4>
-                            </div>
-                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">Beautiful, modern layout perfect for presentations and networking</p>
-                            <div className="flex flex-wrap gap-2">
-                              <span className="px-2 py-1 bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 text-xs rounded-full">Modern Design</span>
-                              <span className="px-2 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs rounded-full">Eye-catching</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div 
-                        className={`group p-6 rounded-2xl border-2 cursor-pointer transition-all duration-300 hover:shadow-lg ${
                           resumeFormat === "ats" 
                             ? "border-blue-500 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 dark:border-blue-400 shadow-lg" 
                             : "border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 bg-white dark:bg-gray-800"
@@ -904,6 +882,28 @@ export default function ResumeEnhancer() {
                             <div className="flex flex-wrap gap-2">
                               <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs rounded-full">ATS-Friendly</span>
                               <span className="px-2 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 text-xs rounded-full">98% Pass Rate</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div 
+                        className="group p-6 rounded-2xl border-2 cursor-not-allowed transition-all duration-300 opacity-60 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50"
+                        onClick={() => {}}
+                      >
+                        <div className="flex items-start space-x-4">
+                          <div className="w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all border-gray-300 dark:border-gray-600">
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-2 mb-2">
+                              <Sparkles className="h-5 w-5 text-gray-400" />
+                              <h4 className="text-lg font-semibold text-gray-500 dark:text-gray-400">Visual Design</h4>
+                              <span className="px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 text-xs rounded-full font-medium">Coming Soon</span>
+                            </div>
+                            <p className="text-sm text-gray-500 dark:text-gray-500 mb-3">Beautiful, modern layout perfect for presentations and networking</p>
+                            <div className="flex flex-wrap gap-2">
+                              <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700/30 text-gray-500 dark:text-gray-400 text-xs rounded-full">Modern Design</span>
+                              <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700/30 text-gray-500 dark:text-gray-400 text-xs rounded-full">Eye-catching</span>
                             </div>
                           </div>
                         </div>
@@ -1012,7 +1012,7 @@ export default function ResumeEnhancer() {
                         {isProcessing ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Processing...
+                            {processingStage || "Processing..."}
                           </>
                         ) : isComplete ? (
                           <>

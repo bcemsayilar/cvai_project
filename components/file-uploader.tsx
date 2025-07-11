@@ -22,7 +22,7 @@ export function FileUploader({ onFileUpload, file, shouldReset, onResetComplete 
   const [isDragging, setIsDragging] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const { toast } = useToast()
   // Create supabase client with useRef to prevent recreation on every render
   const supabaseRef = useRef(createSupabaseClient())
@@ -54,6 +54,16 @@ export function FileUploader({ onFileUpload, file, shouldReset, onResetComplete 
     e.preventDefault()
     e.stopPropagation()
     setIsDragging(false)
+
+    // Check if user has reached their resume limit
+    if (profile && profile.resumes_used >= profile.resumes_limit) {
+      toast({
+        title: "Resume limit reached",
+        description: `You've reached the limit for your ${profile.subscription_type} plan. Please upgrade to upload more resumes.`,
+        variant: "destructive",
+      })
+      return
+    }
 
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const droppedFile = e.dataTransfer.files[0]
@@ -106,6 +116,16 @@ export function FileUploader({ onFileUpload, file, shouldReset, onResetComplete 
     if (!user) {
       // If user is not logged in, just pass the file to parent component
       onFileUpload(file)
+      return
+    }
+
+    // Check if user has reached their resume limit
+    if (profile && profile.resumes_used >= profile.resumes_limit) {
+      toast({
+        title: "Resume limit reached",
+        description: `You've reached the limit for your ${profile.subscription_type} plan. Please upgrade to upload more resumes.`,
+        variant: "destructive",
+      })
       return
     }
 
@@ -187,13 +207,15 @@ export function FileUploader({ onFileUpload, file, shouldReset, onResetComplete 
       {!file ? (
         <div
           className={`border-2 border-dashed rounded-lg p-8 text-center ${
-            isDragging 
-              ? "border-teal-500 bg-teal-50 dark:bg-teal-900/20 dark:border-teal-400" 
-              : "border-gray-300 dark:border-gray-600 hover:border-teal-500 dark:hover:border-teal-400 hover:bg-gray-50 dark:hover:bg-gray-800/50"
+            profile && profile.resumes_used >= profile.resumes_limit
+              ? "border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 opacity-50 cursor-not-allowed"
+              : isDragging 
+                ? "border-teal-500 bg-teal-50 dark:bg-teal-900/20 dark:border-teal-400" 
+                : "border-gray-300 dark:border-gray-600 hover:border-teal-500 dark:hover:border-teal-400 hover:bg-gray-50 dark:hover:bg-gray-800/50"
           } transition-colors duration-150 ease-in-out`}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
+          onDragOver={profile && profile.resumes_used >= profile.resumes_limit ? undefined : handleDragOver}
+          onDragLeave={profile && profile.resumes_used >= profile.resumes_limit ? undefined : handleDragLeave}
+          onDrop={profile && profile.resumes_used >= profile.resumes_limit ? undefined : handleDrop}
         >
           <div className="flex flex-col items-center justify-center space-y-3">
             <div className="p-3 bg-gray-100 dark:bg-gray-700 rounded-full">
@@ -213,13 +235,18 @@ export function FileUploader({ onFileUpload, file, shouldReset, onResetComplete 
                   ref={fileInputRef}
                   onChange={handleFileInputChange}
                   accept=".pdf,.doc,.docx,.txt"
-                  disabled={isUploading}
+                  disabled={isUploading || (profile && profile.resumes_used >= profile.resumes_limit)}
                 />
               </label>
               <p className="pl-1">or drag and drop</p>
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400">PDF, DOC, DOCX or TXT up to 10MB</p>
             {isUploading && <p className="text-sm text-teal-600 dark:text-teal-400">Uploading...</p>}
+            {profile && profile.resumes_used >= profile.resumes_limit && (
+              <p className="text-sm text-amber-600 dark:text-amber-400">
+                Resume limit reached ({profile.resumes_used}/{profile.resumes_limit}). Please upgrade to upload more resumes.
+              </p>
+            )}
           </div>
         </div>
       ) : (

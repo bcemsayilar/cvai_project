@@ -46,7 +46,7 @@ export function generateATSLatexResume(data: ResumeData): string {
 
   // Build contact information line
   const contactInfo = (contacts ?? [])
-    .filter(c => c.value && c.value.trim() && c.value !== 'Not provided') // Filter out empty contacts and "Not provided"
+    .filter(c => c.value && c.value.trim() && c.value !== '-') // Filter out empty contacts and "-"
     .map(c => escapeLaTeX(c.value))
      .join(' $\\cdot$ ');
 
@@ -139,7 +139,7 @@ ${experience.map(exp => generateExperienceSection(exp)).join('\n\n')}
 ${education.map(edu => generateEducationSection(edu)).join('\n')}
 
 ${skills && skills.length > 0 ? `\\header{Skills}
-${skills.filter(s => s && s.trim() && s !== 'Not provided').join(', ')}\\\\
+${skills.filter(s => s && s.trim() && s !== '-').join(', ')}\\\\
 \\vspace*{2mm}
 ` : ''}
 
@@ -156,8 +156,8 @@ ${featured_project.map(proj => generateProjectSection(proj)).join('\n\n')}
 function generateExperienceSection(exp: ResumeData['experience'][0]): string {
   const { position, company, location, dates, highlights } = exp;
   
-  // Filter out empty highlights and "Not provided"
-  const validHighlights = highlights?.filter(h => h && h.trim() && h !== 'Not provided') || [];
+  // Filter out empty highlights and "-"
+  const validHighlights = highlights?.filter(h => h && h.trim() && h !== '-') || [];
   
   return `\\textbf{${escapeLaTeX(company)}} \\hfill ${location ? escapeLaTeX(location) : ''}\\\\
 \\textit{${escapeLaTeX(position)}} \\hfill ${escapeLaTeX(dates)}\\\\
@@ -170,8 +170,8 @@ ${validHighlights.map(highlight => `\t\\item ${escapeLaTeX(highlight)}`).join('\
 function generateEducationSection(edu: ResumeData['education'][0]): string {
   const { degree, institution, location, dates, details } = edu;
   
-  // Filter out empty details and "Not provided"
-  const validDetails = details?.filter(d => d && d.trim() && d !== 'Not provided') || [];
+  // Filter out empty details and "-"
+  const validDetails = details?.filter(d => d && d.trim() && d !== '-') || [];
   
   return `\\textbf{${escapeLaTeX(institution)}}\\hfill ${location ? escapeLaTeX(location) : ''}\\\\
 ${escapeLaTeX(degree)} \\textit{} \\hfill ${escapeLaTeX(dates)}\\\\
@@ -185,8 +185,8 @@ ${validDetails.map(detail => `\t\\item ${escapeLaTeX(detail)}`).join('\n')}
 function generateProjectSection(proj: { name: string; description: string; technologies?: string[] }): string {
   const { name, description, technologies } = proj;
   
-  // Filter out empty technologies and "Not provided"
-  const validTechnologies = technologies?.filter(t => t && t.trim() && t !== 'Not provided') || [];
+  // Filter out empty technologies and "-"
+  const validTechnologies = technologies?.filter(t => t && t.trim() && t !== '-') || [];
   
   return `\\textbf{${escapeLaTeX(name)}}\\\\
 ${escapeLaTeX(description)}${validTechnologies.length > 0

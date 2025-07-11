@@ -20,32 +20,37 @@ const corsHeaders = {
 };
 
 /**
- * Clean resume data by removing empty fields and "Not provided" values
+ * Clean resume data by replacing "Not provided" with "-" and removing empty fields
  */
 function cleanResumeData(data: any): any {
   if (!data || typeof data !== 'object') return data;
   
   if (Array.isArray(data)) {
-    return data.filter(item => item !== null && item !== undefined && item !== '' && item !== 'Not provided')
+    return data.filter(item => item !== null && item !== undefined && item !== '')
                .map(item => cleanResumeData(item));
   }
   
   const cleaned: any = {};
   for (const [key, value] of Object.entries(data)) {
-    if (value === null || value === undefined || value === '' || value === 'Not provided') {
-      continue; // Skip empty values
+    if (value === null || value === undefined || value === '') {
+      continue; // Skip truly empty values
     }
     
-    if (typeof value === 'object') {
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (trimmed === 'Not provided') {
+        cleaned[key] = '-';
+      } else if (trimmed) {
+        cleaned[key] = trimmed;
+      }
+    } else if (typeof value === 'object') {
       const cleanedValue = cleanResumeData(value);
       if (Array.isArray(cleanedValue) && cleanedValue.length > 0) {
         cleaned[key] = cleanedValue;
       } else if (!Array.isArray(cleanedValue) && Object.keys(cleanedValue).length > 0) {
         cleaned[key] = cleanedValue;
       }
-    } else if (typeof value === 'string' && value.trim()) {
-      cleaned[key] = value.trim();
-    } else if (typeof value !== 'string') {
+    } else {
       cleaned[key] = value;
     }
   }
@@ -444,15 +449,9 @@ serve(async (req: Request) => {
     const { data: fileData, error: fileError } = await supabaseClient.storage.from("resumes").download(resume.original_file_path);
     if (fileError || !fileData) {
       console.error("File download error:", fileError);
-await supabaseClient.from("resumes").update({
-  // Add the fields you want to update here, for example:
-  status: "failed"
-}).eq("id", resumeId);
-
-await supabaseClient.from("profiles").update({
-  resumes_used: profile.resumes_used + 1,
-  updated_at: new Date().toISOString()
-}).eq("id", user.id);
+      await supabaseClient.from("resumes").update({
+        status: "failed"
+      }).eq("id", resumeId);
       return new Response(JSON.stringify({
         error: "Failed to download resume file"
       }), {
@@ -813,7 +812,7 @@ Output ONLY the raw JSON object that can be parsed directly with JSON.parse().`;
         
         // Add contact info
         if (atsResumeData.contacts && atsResumeData.contacts.length > 0) {
-          const validContacts = atsResumeData.contacts.filter((c: any) => c.value && c.value.trim() && c.value !== 'Not provided');
+          const validContacts = atsResumeData.contacts.filter((c: any) => c.value && c.value.trim() && c.value !== '-');
           if (validContacts.length > 0) {
             const contactInfo = validContacts.map((c: any) => c.value).join(" | ");
             textSections.push(contactInfo);
@@ -826,7 +825,7 @@ Output ONLY the raw JSON object that can be parsed directly with JSON.parse().`;
           atsResumeData.education.forEach((edu: any) => {
             textSections.push(`${edu.degree}, ${edu.institution} (${edu.dates})`);
             if (edu.details && edu.details.length > 0) {
-              const validDetails = edu.details.filter((detail: any) => detail && detail.trim() && detail !== 'Not provided');
+              const validDetails = edu.details.filter((detail: any) => detail && detail.trim() && detail !== '-');
               validDetails.forEach((detail: any) => textSections.push(`• ${detail}`));
             }
           });
@@ -838,7 +837,7 @@ Output ONLY the raw JSON object that can be parsed directly with JSON.parse().`;
           atsResumeData.experience.forEach((exp: any) => {
             textSections.push(`${exp.position}, ${exp.company} (${exp.dates})`);
             if (exp.highlights && exp.highlights.length > 0) {
-              const validHighlights = exp.highlights.filter((highlight: any) => highlight && highlight.trim() && highlight !== 'Not provided');
+              const validHighlights = exp.highlights.filter((highlight: any) => highlight && highlight.trim() && highlight !== '-');
               validHighlights.forEach((highlight: any) => textSections.push(`• ${highlight}`));
             }
           });
@@ -846,7 +845,7 @@ Output ONLY the raw JSON object that can be parsed directly with JSON.parse().`;
 
         // Add skills
         if (atsResumeData.skills && atsResumeData.skills.length > 0) {
-          const validSkills = atsResumeData.skills.filter((skill: any) => skill && skill.trim() && skill !== 'Not provided');
+          const validSkills = atsResumeData.skills.filter((skill: any) => skill && skill.trim() && skill !== '-');
           if (validSkills.length > 0) {
             textSections.push("\nSKILLS");
             textSections.push(validSkills.join(", "));
@@ -859,7 +858,7 @@ Output ONLY the raw JSON object that can be parsed directly with JSON.parse().`;
           atsResumeData.featured_project.forEach((proj: any) => {
             textSections.push(`${proj.name}: ${proj.description}`);
             if (proj.technologies && proj.technologies.length > 0) {
-              const validTechnologies = proj.technologies.filter((tech: any) => tech && tech.trim() && tech !== 'Not provided');
+              const validTechnologies = proj.technologies.filter((tech: any) => tech && tech.trim() && tech !== '-');
               if (validTechnologies.length > 0) {
                 textSections.push(`Technologies: ${validTechnologies.join(", ")}`);
               }
@@ -931,6 +930,12 @@ Output ONLY the raw JSON object that can be parsed directly with JSON.parse().`;
           console.error("Error updating resume record:", updateError);
           throw new Error("Failed to update resume status");
         }
+
+        // Increment user's resumes_used count
+        await supabaseClient.from("profiles").update({
+          resumes_used: profile.resumes_used + 1,
+          updated_at: new Date().toISOString()
+        }).eq("id", user.id);
 
         console.log("ATS LaTeX resume processing completed successfully");
         return new Response(JSON.stringify({ success: true }), {
@@ -1080,16 +1085,16 @@ ${customInstructions ? `\nAdditional instructions: ${customInstructions}` : ""}
       if (resumeJson.contacts && resumeJson.contacts.length > 0) {
         const contactInfo: string[] = [];
         resumeJson.contacts.forEach((contact: any) => {
-          if (contact.type === "email" && contact.value && contact.value.trim() && contact.value !== 'Not provided') {
+          if (contact.type === "email" && contact.value && contact.value.trim() && contact.value !== '-') {
             contactInfo.push(contact.value);
           }
-          if (contact.type === "website" && contact.value && contact.value.trim() && contact.value !== 'Not provided') {
+          if (contact.type === "website" && contact.value && contact.value.trim() && contact.value !== '-') {
             contactInfo.push(contact.value);
           }
-          if (contact.type === "linkedin" && contact.value && contact.value.trim() && contact.value !== 'Not provided') {
+          if (contact.type === "linkedin" && contact.value && contact.value.trim() && contact.value !== '-') {
             contactInfo.push(contact.value);
           }
-          if (contact.type === "github" && contact.value && contact.value.trim() && contact.value !== 'Not provided') {
+          if (contact.type === "github" && contact.value && contact.value.trim() && contact.value !== '-') {
             contactInfo.push(contact.value);
           }
         });
@@ -1103,7 +1108,7 @@ ${customInstructions ? `\nAdditional instructions: ${customInstructions}` : ""}
         resumeJson.education.forEach((item: any) => {
           contentSections.push(`${item.degree}, ${item.institution} (${item.dates})`);
           if (item.details && item.details.length > 0) {
-            const validDetails = item.details.filter((detail: any) => detail && detail.trim() && detail !== 'Not provided');
+            const validDetails = item.details.filter((detail: any) => detail && detail.trim() && detail !== '-');
             validDetails.forEach((detail: any) => {
               contentSections.push(`• ${detail}`);
             });
@@ -1116,13 +1121,13 @@ ${customInstructions ? `\nAdditional instructions: ${customInstructions}` : ""}
         resumeJson.experience.forEach((item: any) => {
           contentSections.push(`${item.position}, ${item.company} (${item.dates})`);
           if (item.highlights && item.highlights.length > 0) {
-            const validHighlights = item.highlights.filter((highlight: any) => highlight && highlight.trim() && highlight !== 'Not provided');
+            const validHighlights = item.highlights.filter((highlight: any) => highlight && highlight.trim() && highlight !== '-');
             if (validHighlights.length > 0) {
               contentSections.push(`Highlights: ${validHighlights.join(", ")}`);
             }
           }
           if (item.tags && item.tags.length > 0) {
-            const validTags = item.tags.filter((tag: any) => tag && tag.trim() && tag !== 'Not provided');
+            const validTags = item.tags.filter((tag: any) => tag && tag.trim() && tag !== '-');
             if (validTags.length > 0) {
               contentSections.push(`Tags: ${validTags.join(", ")}`);
             }
@@ -1131,7 +1136,7 @@ ${customInstructions ? `\nAdditional instructions: ${customInstructions}` : ""}
       }
       // Add Skills
       if (resumeJson.skills && resumeJson.skills.length > 0) {
-        const validSkills = resumeJson.skills.filter((skill: any) => skill && skill.trim() && skill !== 'Not provided');
+        const validSkills = resumeJson.skills.filter((skill: any) => skill && skill.trim() && skill !== '-');
         if (validSkills.length > 0) {
           contentSections.push("\nSKILLS");
           contentSections.push(validSkills.join(", "));
