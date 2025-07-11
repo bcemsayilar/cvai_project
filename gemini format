@@ -252,3 +252,4 @@ Reduce the number of properties with complex constraints, such as properties wit
 Reduce the number of optional properties.
 Reduce the number of valid values for enums.
 If you aren't seeing the results you expect, add more context to your input prompts or revise your response schema. For example, review the model's response without structured output to see how the model responds. You can then update your response schema so that it better fits the model's output.
+

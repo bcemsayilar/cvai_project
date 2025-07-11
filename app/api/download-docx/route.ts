@@ -58,6 +58,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders });
     }
 
+    // Get user profile and check limits
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('resumes_used, resumes_limit')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError || !profile) {
+      return NextResponse.json({ error: 'User profile not found' }, { status: 404, headers: corsHeaders });
+    }
+
+    // Check if user has reached download limit
+    if (profile.resumes_used >= profile.resumes_limit) {
+      return NextResponse.json({ 
+        error: 'Download limit reached for your subscription. Please upgrade your plan.' 
+      }, { status: 403, headers: corsHeaders });
+    }
+
     // Get resume data from database
     const { data: resume, error: resumeError } = await supabase
       .from('resumes')
@@ -187,6 +205,21 @@ export async function POST(req: NextRequest) {
 
     // Generate the DOCX buffer
     const buffer = await Packer.toBuffer(doc);
+
+    // Increment usage counter after successful generation
+    try {
+      await supabase
+        .from('profiles')
+        .update({ 
+          resumes_used: profile.resumes_used + 1,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', user.id);
+      console.log(`User ${user.id} usage incremented to ${profile.resumes_used + 1}`);
+    } catch (updateError) {
+      console.error('Failed to update usage counter:', updateError);
+      // Don't fail the download if counter update fails
+    }
 
     // Create response with proper headers
     const response = new NextResponse(buffer);

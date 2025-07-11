@@ -471,8 +471,11 @@ export default function ResumeEnhancer() {
 
   // Reset scroll position on initial load
   useEffect(() => {
-    // Scroll to top on component mount to ensure page starts at the beginning
-    window.scrollTo(0, 0)
+    const timer = setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }, 100)
+    
+    return () => clearTimeout(timer)
   }, [])
 
   const downloadResume = async (format: "txt") => {

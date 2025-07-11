@@ -58,6 +58,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, newSession) => {
       console.log("Auth state changed:", event)
+      
+      // Store scroll position before auth changes
+      const scrollPosition = window.scrollY
+      
       setSession(newSession)
       setUser(newSession?.user ?? null)
 
@@ -67,6 +71,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       setIsLoading(false)
+      
+      // Restore scroll position after auth state update for SIGNED_IN events
+      if (event === 'SIGNED_IN' && scrollPosition > 0) {
+        setTimeout(() => {
+          window.scrollTo({ top: scrollPosition, behavior: 'smooth' })
+        }, 100)
+      }
     })
 
     // Initial session check

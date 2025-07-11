@@ -54,6 +54,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders });
     }
 
+    // Get user profile and check limits
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('resumes_used, resumes_limit')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError || !profile) {
+      return NextResponse.json({ error: 'User profile not found' }, { status: 404, headers: corsHeaders });
+    }
+
+    // Check if user has reached download limit
+    if (profile.resumes_used >= profile.resumes_limit) {
+      return NextResponse.json({ 
+        error: 'Download limit reached for your subscription. Please upgrade your plan.' 
+      }, { status: 403, headers: corsHeaders });
+    }
+
     // Get the PDF from the latex-to-pdf API
     const pdfResponse = await fetch(new URL('/api/latex-to-pdf', req.url).toString(), {
       method: 'POST',
@@ -76,6 +94,21 @@ export async function POST(req: NextRequest) {
 
     // Convert base64 to buffer
     const pdfBuffer = Buffer.from(result.pdfBuffer, 'base64');
+
+    // Increment usage counter after successful download
+    try {
+      await supabase
+        .from('profiles')
+        .update({ 
+          resumes_used: profile.resumes_used + 1,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', user.id);
+      console.log(`User ${user.id} usage incremented to ${profile.resumes_used + 1}`);
+    } catch (updateError) {
+      console.error('Failed to update usage counter:', updateError);
+      // Don't fail the download if counter update fails
+    }
 
     // Return the PDF as a downloadable response
     return new NextResponse(pdfBuffer, {

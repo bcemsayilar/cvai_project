@@ -29,6 +29,15 @@ export default function RootLayout({
           <AuthProvider>{children}</AuthProvider>
           <Toaster />
         </ThemeProvider>
+        
+        {/* Disable automatic scroll restoration and handle manually */}
+        <Script id="scroll-restoration">
+          {`
+            if ('scrollRestoration' in history) {
+              history.scrollRestoration = 'manual';
+            }
+          `}
+        </Script>
       </body>
     </html>
   )
